@@ -1,4 +1,5 @@
 streamlit
+pydantic
 PyMuPDF
 python-docx
 opencv-python-headless
