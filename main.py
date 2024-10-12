@@ -702,9 +702,6 @@ def main():
     # File uploader for PDF
     uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
 
-    pdf_filename = uploaded_file.name  
-    base_filename = os.path.splitext(pdf_filename)[0]  
-    output_word_filename = f"{base_filename}.docx"  
     
     # Select text length
     text_length = st.selectbox("Select Text Length", ["Standard", "Blend", "Creative"])
@@ -713,6 +710,10 @@ def main():
     low_quality_slides = st.text_input("Low Quality Slides (Comma-separated)", value="")
     
     if st.button("Start Generate"):
+        pdf_filename = uploaded_file.name  
+        base_filename = os.path.splitext(pdf_filename)[0]  
+        output_word_filename = f"{base_filename}.docx"  
+        
         with open("uploaded_pdf.pdf", "wb") as f:
             f.write(uploaded_file.getbuffer())
 
