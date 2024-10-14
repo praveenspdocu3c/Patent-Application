@@ -4,14 +4,51 @@ import streamlit as st
 import fitz  # PyMuPDF for PDF processing
 from io import BytesIO  
 from docx import Document  
-from docx.shared import Pt
+from docx.shared import Pt   # type: ignore
 import cv2
 import numpy as np
 from PIL import Image
 import requests
 import base64
 import json
-from config import settings  # Import settings from the config module
+from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient   # type: ignore
+from azure.core.exceptions import ResourceExistsError  
+import tempfile  
+
+# Azure OpenAI credentials
+azure_endpoint = "https://gpt-4omniwithimages.openai.azure.com/"
+api_key = "6e98566acaf24997baa39039b6e6d183"
+api_version = "2024-02-01"
+model = "GPT-40-mini"
+
+
+# Azure Blob Storage credentials  
+connection_string = "DefaultEndpointsProtocol=https;AccountName=patentpptapp;AccountKey=4988gBY4D2RU4zdy1NCUoORdCRYvoOziWSHK9rOVHxy9pFXfKenRqyE/P+tpFpfmNObUm/zOCjeY+AStiCS3uw==;EndpointSuffix=core.windows.net"  
+container_name = "ppt-storage"  
+  
+blob_service_client = BlobServiceClient.from_connection_string(connection_string)  
+  
+# URL of your Azure function endpoint  
+azure_function_url = 'https://doc2pdf.azurewebsites.net/api/HttpTrigger1'   
+  
+# Function to convert PPT to PDF using Azure Function  
+def ppt_to_pdf(ppt_file, pdf_file):  
+    mime_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'  
+    headers = {  
+        "Content-Type": "application/octet-stream",  
+        "Content-Type-Actual": mime_type  
+    }  
+    with open(ppt_file, 'rb') as file:  
+        response = requests.post(azure_function_url, data=file.read(), headers=headers)  
+        if response.status_code == 200:  
+            with open(pdf_file, 'wb') as pdf_out:  
+                pdf_out.write(response.content)  
+            return True  
+        else:  
+            st.error(f"File conversion failed with status code: {response.status_code}")  
+            st.error(f"Response: {response.text}")  
+            return False  
+
 
 patent_profanity_words = [  
     "absolute", "absolutely", "all", "always", "authoritative", "authoritatively", "best", "biggest", "black hat",  
@@ -46,7 +83,7 @@ def extract_titles_from_images(image_content):
 
     headers = {
         "Content-Type": "application/json",
-        "api-key": settings.api_key  # Use the api_key from the settings
+        "api-key": api_key
     }
 
     for image_data in image_content:
@@ -56,7 +93,7 @@ def extract_titles_from_images(image_content):
         # Use LLM to generate a title for the slide based on the image
         prompt = "What is the title of the slide based on the given image?"
         data = {
-            "model": settings.model,  # Use the model from the settings
+            "model": model,
             "messages": [
                 {"role": "system", "content": "You are a slide titles extraction model [Note: Only return the slide Title without any additional generated text]"},
                 {"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}]}
@@ -66,7 +103,7 @@ def extract_titles_from_images(image_content):
         }
 
         response = requests.post(
-            f"{settings.azure_endpoint}/openai/deployments/{settings.model}/chat/completions?api-version={settings.api_version}",
+            f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
             headers=headers,
             data=json.dumps(data)
         )
@@ -84,6 +121,7 @@ def extract_titles_from_images(image_content):
 
     return slide_data
 
+
 # Function to generate insights for images via LLM
 def generate_image_insights(image_content, text_length, low_quality_slides, overall_theme, pa, slide_data):
     insights = []
@@ -97,7 +135,7 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
             continue  # Skip low-quality slides  
   
         base64_image = encode_image(image_data['image'])  
-  
+
         # Determine how many images are on the slide  
         images_on_slide = [img for img in image_content if img['slide_number'] == slide_number]  
         image_ref = f"figure {slide_number}"  
@@ -109,13 +147,16 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
         
         headers = {  
             "Content-Type": "application/json",  
-            "api-key": settings.api_key  
+            "api-key": api_key  
         }  
   
         # Overall Content for your Understanding : {overall_theme}\n Use the Overall Content as reference 
         # Remove all listed profanity words. Example for your reference: {patent_profanity_words}. 
         
-        prompt = f"""{pa} 
+        prompt = f"""{pa}
+
+        Important Note: While generating content, avoid using the following words and their related forms: 'necessity,' 'necessary', 'necessitate', 'necessitating', 'necessitate,' 'consist,' 'consisting,' 'explore,' 'exploration,' 'key component,' 'revolutionizing,' 'innovative,' or any similar adjectives. Instead, use alternative words or phrases as replacements.
+
         Step 1: Detect and list all figures on the slide, ensuring none are missed. This includes figures arranged in parallel, adjacent, or stacked. Treat each diagram, sketch, or flowchart as a separate figure.
         [ Special Case: If no figures (images, diagrams, sketches, or flowcharts) are present, follow these instructions based on the slide title:
 
@@ -130,7 +171,7 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
         (c) If the title doesn't include "Background" or "Proposal," start with:
         "Aspects of the present disclosure include..."
         Focus on the slide's main points, without mentioning prior solutions or proposals. 
-        
+
         Write a clear, concise paragraph without using phrases like "The slide presents" or "discusses." 
         Ignore all other steps (1a-14) and prioritize these rules.]
 
@@ -177,7 +218,7 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
             Follow this with a detailed explanation.
         Step 14: Analyze and reproduce the text content before describing any images. Integrate both text and image content smoothly.
         Step 15: Style Guide Instructions:
-            (a) Do not use any of listed profanity words. 
+            (a) Remove all listed profanity words example: {patent_profanity_words}. 
             (b) Use passive voice throughout.
             (c) Replace "Million" and "Billion" with "1,000,000" and "1,000,000,000."
             (d) Keep the tone precise, formal, and objective.
@@ -189,7 +230,7 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
             (j) Ensure accurate representation of figures, flowcharts, and equations.
             (k) Avoid specific words like "revolutionizing" or "innovative."
             (l) Remove redundant expansion of abbreviations.
-                
+
         Important Note: Return content only in a single paragraph.
         Important Note: Give importance to equations that are presented in the Slide.
         Important Note: Don't consider equation as Images.
@@ -198,7 +239,7 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
         """   
 
         data = {  
-            "model": settings.model,  
+            "model": model,  
             "messages": [  
                 {"role": "system", "content": f"{pa}"},  
                 {"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}]}  
@@ -207,7 +248,7 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
         }  
 
         response = requests.post(
-            f"{settings.azure_endpoint}/openai/deployments/{settings.model}/chat/completions?api-version={settings.api_version}",
+            f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
             headers=headers,
             data=json.dumps(data)
         )
@@ -229,37 +270,10 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
 
 
 
-# Function to generate insights for images via LLM
-def final_check(aggregated_content):
-    insights = []            
-    headers = {  
-        "Content-Type": "application/json",  
-        "api-key": settings.api_key  
-    }  
-    
-    prompt = f"""{aggregated_content}"""   
-
-    data = {  
-        "model": settings.model,  
-        "messages": [  
-            {"role": "system", "content": f"""Replace in this given paragraph "necessary" and other similar sounding words with "require", "requires" and so on..."""},  
-            {"role": "user", "content": {"type": "text", "text": prompt}}  
-        ],  
-        "temperature": "0.1"  
-    }  
-
-    response = requests.post(
-        f"{settings.azure_endpoint}/openai/deployments/{settings.model}/chat/completions?api-version={settings.api_version}",
-        headers=headers,
-        data=json.dumps(data)
-    )
-    
-    return response
-
 def generate_text_insights(text_content, text_length, theme, low_quality_slides, slide_data, pa):  
     headers = {  
         "Content-Type": "application/json",  
-        "api-key": settings.api_key  
+        "api-key": api_key  
     }  
     insights = []  
   
@@ -280,7 +294,9 @@ def generate_text_insights(text_content, text_length, theme, low_quality_slides,
         slide_title = next((slide['title'] for slide in slide_data if slide['slide_number'] == slide_number), "Untitled Slide")  
         slide_text = slide['text'] 
         
-        prompt = f"""{pa} 
+        prompt = f"""{pa}
+        Important Note: While generating content, avoid using the following words and their related forms: 'necessity,' 'necessary', 'necessitate', 'necessitating', 'consist,' 'consisting,' 'explore,' 'exploration,' 'key component,' 'revolutionizing,' 'innovative,' or any similar adjectives. Instead, use alternative words or phrases as replacements.
+
         I want you to begin with one of the following phrases based on the slide title: 
         
         (a) If the title includes "Invention" or "Proposal," start with:
@@ -294,11 +310,11 @@ def generate_text_insights(text_content, text_length, theme, low_quality_slides,
         (c) If the title doesn't include "Background" or "Proposal," start with:
         "Aspects of the present disclosure include..."
         Focus on the slide's main points, without mentioning prior solutions or proposals. 
-
+ 
         The information should be delivered in a structured, clear, and concise paragraph while avoiding phrases like 'The slide presents,' 'discusses,' 'outlines,' or 'content.' Summarize all major points without bullet points.  
           
         Follow these detailed style guidelines for the generated content:          
-            (a) Remove all listed profanity words. 
+            (a) Remove all listed profanity words: {patent_profanity_words}\n. 
             (b) Use passive voice throughout.
             (c) Replace "Million" and "Billion" with "1,000,000" and "1,000,000,000."
             (d) Keep the tone precise, formal, and objective.
@@ -309,8 +325,8 @@ def generate_text_insights(text_content, text_length, theme, low_quality_slides,
             (i) Use definitive language when discussing the current disclosure.
             (j) Ensure accurate representation of figures, flowcharts, and equations.
             (k) Avoid specific words like "revolutionizing" or "innovative."
-            (l) Remove redundant expansion of abbreviations.
-
+            (l) Remove redundant expansion of abbreviations. 
+            
         Important Note: Return content only in a single paragraph.
         Important Note: Give importance to equations that are presented in the Slide.
         Important Note: Don't consider equation as Images.
@@ -328,13 +344,13 @@ def generate_text_insights(text_content, text_length, theme, low_quality_slides,
             prompt += "\n\nGenerate a longer paragraph."  
   
         data = {  
-            "model": settings.model,  
-            "messages": [{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": prompt}],  
+            "model": model,  
+            "messages": [{"role": "system", "content": f"{pa}"}, {"role": "user", "content": prompt}],  
             "temperature": temperature  
         }  
   
         response = requests.post(  
-            f"{settings.azure_endpoint}/openai/deployments/{settings.model}/chat/completions?api-version={settings.api_version}",
+            f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",  
             headers=headers,  
             json=data  
         )  
@@ -360,19 +376,20 @@ def generate_text_insights(text_content, text_length, theme, low_quality_slides,
                 "insight": "Error generating insight."
             })
     
+    print(insights)
     return insights
 
 def generate_prompt(overall_theme):
     headers = {
         "Content-Type": "application/json",
-        "api-key": settings.api_key
+        "api-key": api_key
     }
     
     # Generate an overall theme of the following document content: {text_content}
     prompt = f"Create a perfect system prompt based on the given content: {overall_theme}\n [Note: Return output in single line starting with 'You are a Patent Attorney specializing..]"  
     
     data = {
-        "model": settings.model,
+        "model": model,
         "messages": [
             {"role": "system", "content": "You are a Patent Attorney specializing in generating content based on the document content"},
             {"role": "user", "content": prompt}
@@ -382,7 +399,7 @@ def generate_prompt(overall_theme):
     }
     
     response = requests.post(
-        f"{settings.azure_endpoint}/openai/deployments/{settings.model}/chat/completions?api-version={settings.api_version}",
+        f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
         headers=headers,
         data=json.dumps(data)
     )
@@ -475,13 +492,13 @@ def extract_text_and_titles_from_pdf(pdf_path):
 def generate_overall_theme(text_content):
     headers = {
         "Content-Type": "application/json",
-        "api-key": settings.api_key
+        "api-key": api_key
     }
 
     prompt = f"Analysis and identify the domain and subject of the patent/Invention and then generate an overall theme of the following document content: {text_content}"  
 
     data = {
-        "model": settings.model,
+        "model": model,
         "messages": [
             {"role": "system", "content": "You are a Patent Attorney specializing in generating content based on the document content"},
             {"role": "user", "content": prompt}
@@ -491,7 +508,7 @@ def generate_overall_theme(text_content):
     }
 
     response = requests.post(
-        f"{settings.azure_endpoint}/openai/deployments/{settings.model}/chat/completions?api-version={settings.api_version}",
+        f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
         headers=headers,
         data=json.dumps(data)
     )
@@ -534,43 +551,97 @@ def ensure_proper_spacing(text):
     return text  
 
 
-def save_content_to_word(aggregated_content, output_file_name, extracted_images, theme):  
-    doc = Document()  
-    style = doc.styles['Normal']  
-    font = style.font  
-    font.name = 'Times New Roman'  
-    font.size = Pt(10.5)  # Reduced font size for paragraphs  
-    paragraph_format = style.paragraph_format  
-    paragraph_format.line_spacing = 1.5  
-    paragraph_format.alignment = 3  # Justify  
+# def save_content_to_word(aggregated_content, output_file_name, extracted_images, theme):  
+#     doc = Document()  
+#     style = doc.styles['Normal']  
+#     font = style.font  
+#     font.name = 'Times New Roman'  
+#     font.size = Pt(10.5)  # Reduced font size for paragraphs  
+#     paragraph_format = style.paragraph_format  
+#     paragraph_format.line_spacing = 1.5  
+#     paragraph_format.alignment = 3  # Justify  
   
-    for slide in aggregated_content:  
-        sanitized_title = sanitize_text(slide['slide_title'])  
-        sanitized_content = sanitize_text(slide['content'])  
-        properly_spaced_content = ensure_proper_spacing(sanitized_content)  
-        slide_numbers = slide['slide_number'] if isinstance(slide['slide_number'], str) else f"[[{slide['slide_number']}]]"  
-        doc.add_heading(f"{slide_numbers}, {sanitized_title}", level=1)  
-        if properly_spaced_content:  # Only add content if it exists  
-            doc.add_paragraph(properly_spaced_content)  
+#     for slide in aggregated_content:  
+#         sanitized_title = sanitize_text(slide['slide_title'])  
+#         sanitized_content = sanitize_text(slide['content'])  
+#         properly_spaced_content = ensure_proper_spacing(sanitized_content)  
+#         slide_numbers = slide['slide_number'] if isinstance(slide['slide_number'], str) else f"[[{slide['slide_number']}]]"  
+#         doc.add_heading(f"{slide_numbers}, {sanitized_title}", level=1)  
+#         if properly_spaced_content:  # Only add content if it exists  
+#             doc.add_paragraph(properly_spaced_content)  
   
-    # Add extracted images after the generated content  
-    if extracted_images:  
-        doc.add_heading("Extracted Images", level=1)  
-        for idx, (image, slide_number) in enumerate(extracted_images):  
-            _, buffer = cv2.imencode('.png', image)  
-            image_stream = BytesIO(buffer)  
-            doc.add_paragraph(f"Image from Slide {slide_number}:")  
-            doc.add_picture(image_stream, width=doc.sections[0].page_width - doc.sections[0].left_margin - doc.sections[0].right_margin)  
-            doc.add_paragraph("\n")  # Add space after image  
+#     # Add extracted images after the generated content  
+#     if extracted_images:  
+#         doc.add_heading("Extracted Images", level=1)  
+#         for idx, (image, slide_number) in enumerate(extracted_images):  
+#             _, buffer = cv2.imencode('.png', image)  
+#             image_stream = BytesIO(buffer)  
+#             doc.add_paragraph(f"Image from Slide {slide_number}:")  
+#             doc.add_picture(image_stream, width=doc.sections[0].page_width - doc.sections[0].left_margin - doc.sections[0].right_margin)  
+#             doc.add_paragraph("\n")  # Add space after image  
   
-    # Add the theme at the end of the document  
-    doc.add_heading("Overall Theme", level=1)  
-    doc.add_paragraph(theme)  
+#     # Add the theme at the end of the document  
+#     doc.add_heading("Overall Theme", level=1)  
+#     doc.add_paragraph(theme)  
   
-    output = BytesIO()  
-    doc.save(output)  
-    output.seek(0)  
-    return output 
+#     output = BytesIO()  
+#     doc.save(output)  
+#     output.seek(0)  
+#     return output 
+
+def save_content_to_word(aggregated_content, output_file_name, extracted_images, theme):
+    doc = Document()
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'Times New Roman'
+    font.size = Pt(10.5)  # Reduced font size for paragraphs
+    paragraph_format = style.paragraph_format
+    paragraph_format.line_spacing = 1.5
+    paragraph_format.alignment = 3  # Justify
+
+    for slide in aggregated_content:
+        # Ensure slide is a dictionary
+        if isinstance(slide, dict):
+            slide_number = slide.get('slide_number', 'Unknown Slide')
+            slide_title = slide.get('slide_title', 'Unknown Title')
+            sanitized_title = sanitize_text(slide_title)
+            sanitized_content = sanitize_text(slide.get('content', ''))
+            properly_spaced_content = ensure_proper_spacing(sanitized_content)
+            
+            # Check if slide_number is string or integer
+            slide_numbers = slide_number if isinstance(slide_number, str) else f"{slide_number}"
+
+            # # Debugging print to ensure content is correct
+            # doc.add_heading(f"[[{slide_numbers}, {sanitized_title}]]")
+            # doc.add_paragraph(f"{properly_spaced_content}")
+
+            # Adding content to the document
+            doc.add_heading(f"[[{slide_numbers}, {sanitized_title}]]", level=1)
+            doc.add_paragraph(f"{slide['insight']}")
+        else:
+            print(f"Invalid slide structure: {slide}")
+            # doc.add_heading(f"[[{slide['slide_numbers']}, {slide['sanitized_title']}]]")
+            # doc.add_paragraph(f"{slide['insight']}")
+
+    # Add extracted images after the generated content
+    if extracted_images:
+        doc.add_heading("Extracted Images", level=1)
+        for idx, (image, slide_number) in enumerate(extracted_images):
+            _, buffer = cv2.imencode('.png', image)
+            image_stream = BytesIO(buffer)
+            doc.add_paragraph(f"Image from Slide {slide_number}:")
+            doc.add_picture(image_stream, width=doc.sections[0].page_width - doc.sections[0].left_margin - doc.sections[0].right_margin)
+            doc.add_paragraph("\n")  # Add space after image
+
+    # Add the theme at the end of the document
+    doc.add_heading("Overall Theme", level=1)
+    doc.add_paragraph(theme)
+
+    output = BytesIO()
+    doc.save(output)
+    output.seek(0)
+    return output
+
 
 
 def extract_and_clean_page_image(page, top_mask, bottom_mask, left_mask, right_mask):  
@@ -636,30 +707,197 @@ def extract_images_from_pdf(pdf_file, top_mask, bottom_mask, left_mask, right_ma
     pdf_document.close()  
     return page_images
 
-def aggregate_content(text_insights, image_insights, slide_data):  
-    aggregated_content = []  
-    for img in image_insights:
-        slide_number = img['slide_number'] 
-        slide_title = img['slide_title'] 
-        image_insight = img['insight'] 
-        
-    for text in text_insights:  
-        slide_number = text['slide_number']  
-        slide_title = text['slide_title']  
-        text_insight = text['insight']  
-        
-    if image_insight:  
-            content = f"[[{slide_number}, {slide_title}]]{image_insight}"  
-            print("---------------------------------------------------------------------------------------------------------------------------")
-            print(content)
-    else:  
-            content = f"[[{slide_number}, {slide_title}]]{text_insight}"  
-    aggregated_content.append(content) 
+# def aggregate_content(text_insights, image_insights, slide_data):  
+#     aggregated_content = []  
+#     for img in image_insights:
+#         slide_number = img['slide_number'] 
+#         slide_title = img['slide_title'] 
+#         image_insight = img['insight'] 
+
+#     for text in text_insights:  
+#         slide_number = text['slide_number']  
+#         slide_title = text['slide_title']  
+#         text_insight = text['insight']  
     
-    dd = final_check(aggregated_content)
-    return dd
+#     for slide in slide_data:
+#         if image_insight:  
+#             content = f"[[{slide_number}, {slide_title}]]{image_insight}"  
+#             print("---------------------------------------------------------------------------------------------------------------------------")
+#             print(content)
+#         else:  
+#             content = f"[[{slide_number}, {slide_title}]]{text_insight}"  
+#         aggregated_content.append(content)  
+        
+#     return aggregated_content
 
 
+def aggregate_content(text_insights, image_insights, slide_data):
+    aggregated_content = []
+    processed_slide_numbers = set()
+
+    # Step 1: Add image insights and mark slide numbers as processed
+    for img in image_insights:
+        slide_number = int(img['slide_number'])  # Convert slide number to int for sorting later
+        slide_title = img['slide_title']
+        image_insight = img['insight']
+        
+        # Collect content with slide number and title in separate fields
+        aggregated_content.append({
+            'slide_number': slide_number,
+            'slide_title': slide_title,
+            'insight': image_insight
+        })
+        processed_slide_numbers.add(slide_number)  # Track processed slide numbers
+ 
+    # Step 2: Add text insights for slides that are not in image_insights
+    for text in text_insights:
+        slide_number = int(text['slide_number'])  # Convert slide number to int for sorting later
+        slide_title = text['slide_title']
+        text_insight = text['insight']
+
+        # Only add text insights if the slide number wasn't already processed
+        if slide_number not in processed_slide_numbers:
+            aggregated_content.append({
+                'slide_number': slide_number,
+                'slide_title': slide_title,
+                'insight': text_insight
+            })
+            processed_slide_numbers.add(slide_number)  # Mark as processed
+
+    # Step 3: Sort the aggregated content by slide number in ascending order
+    aggregated_content = sorted(aggregated_content, key=lambda x: x['slide_number'])
+
+    # Step 4: Return the aggregated content with the required structure
+    return aggregated_content
+
+
+def identify_low_quality_slides(text_content, image_slides): 
+    low_quality_slides = set()  
+
+    # Ensure all elements in image_slides have a valid 'slide_number' key
+    image_slides_dict = {int(slide['slide_number']): slide for slide in image_slides if 'slide_number' in slide}  # Extract slide numbers and create a dict for easier access
+
+    for slide in text_content:  
+        slide_number = int(slide['slide_number'])  # Convert slide_number to an integer if it's not already
+        
+        # Skip if the slide number is in image_slides
+        if slide_number in image_slides_dict:   
+            # st.write(f"Processing image slide {slide_number}")
+            image_slide_data = image_slides_dict[slide_number]  # Access the correct slide data
+            
+            # Pass the individual slide dictionary to the is_low_quality_image_slide function
+            if is_low_quality_image_slide(image_slide_data):
+                low_quality_slides.add(slide_number)
+                
+            continue  # Skip further checks for image slides
+
+        # Check word count for text slides
+        word_count = len(slide['text'].split())  
+        if word_count < 30:  
+            low_quality_slides.add(slide_number)  
+        
+        # Check for generic terms
+        if any(generic in slide['text'].lower() for generic in ["introduction", "thank you", "inventor details"]):  
+            low_quality_slides.add(slide_number)
+            
+    return low_quality_slides
+
+
+def is_low_quality_image_slide(image_data):
+    """Send image slide data to an LLM to check whether the slide is low quality."""
+  
+    base64_image = encode_image(image_data['image'])  # Access the image from the individual slide dictionary
+        
+    # Create prompt to assess the slide based on the slide number
+    prompt = f"""
+    State whether the slide is low quality. 
+    If it mostly contains text, check the slide has more than 30 words if it has then consider it high quality, 
+    If the slide has less then 20 words without any image in it then consider it low quality.
+    If it contains diagrams, figures, graphs, tables, charts, or images, consider it high quality. 
+    if the title contains 'summary' then check for whether the slide has more than 30 words if it has then consider it high quality.
+    Also, if the title contains 'introduction', 'thank you', or 'inventor details', consider it low quality.
+    """
+    
+    data = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are an image slide quality assessment model."},
+            {"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}]}  
+            ],
+        "max_tokens": 100,
+        "temperature": 0.3
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": api_key
+    }
+
+    response = requests.post(
+        f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
+        headers=headers,
+        data=json.dumps(data)
+    )
+
+    if response.status_code == 200:
+        assessment = response.json()['choices'][0]['message']['content']
+        # st.success("low quality" in assessment.lower())
+        return "low quality" in assessment.lower()
+    else:
+        st.write(f"Error processing slide: {response.status_code}")
+        return False
+    
+
+# def encode_image(image_path):
+#     """Convert image to base64 for sending to LLM."""
+#     with open(image_path, "rb") as image_file:
+#         return base64.b64encode(image_file.read()).decode('utf-8')
+
+
+# def identify_low_quality_slides(text_content, image_slides): 
+#     low_quality_slides = set()  
+
+#     # Ensure all elements in image_slides are integers for consistent comparison
+#     image_slides = {int(slide['slide_number']) for slide in image_slides if 'slide_number' in slide}  # Extract and convert slide numbers
+
+#     for slide in text_content:  
+#         slide_number = int(slide['slide_number'])  # Convert slide_number to an integer if it's not already
+        
+#         # Skip if the slide number is in image_slides
+#         if slide_number in image_slides:   
+#             st.write(slide_number)
+             
+#         # Check word count
+#         word_count = len(slide['text'].split())  
+#         if word_count < 30:  
+#             low_quality_slides.add(slide_number)  
+        
+#         # Check for generic terms
+#         if any(generic in slide['text'].lower() for generic in ["introduction", "thank you", "inventor details"]):  
+#             low_quality_slides.add(slide_number)
+            
+#     return low_quality_slides  
+
+
+
+
+def upload_to_blob_storage(file_name, file_data):  
+    try:  
+        blob_client = blob_service_client.get_blob_client(container=container_name, blob=file_name)  
+        blob_client.upload_blob(file_data, overwrite=True)  
+        st.info(f"{file_name} uploaded to Azure Blob Storage.")  
+    except Exception as e:  
+        st.error(f"Failed to upload {file_name} to Azure Blob Storage: {e}")  
+        
+def download_from_blob_storage(file_name):  
+    try:  
+        blob_client = blob_service_client.get_blob_client(container=container_name, blob=file_name)  
+        blob_data = blob_client.download_blob().readall()  
+        return BytesIO(blob_data)  
+    except Exception as e:  
+        st.error(f"Failed to download {file_name} from Azure Blob Storage: {e}")  
+        return None 
+    
 # Streamlit app interface update
 def main():
     st.title("PATENT APPLICATION")
@@ -700,22 +938,44 @@ def main():
         st.session_state.right_mask = right_mask  
     
     # File uploader for PDF
-    uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
 
-    
+    uploaded_ppt = st.file_uploader("Upload a PPT file", type=["pptx"]) 
+        
     # Select text length
     text_length = st.selectbox("Select Text Length", ["Standard", "Blend", "Creative"])
-    
-    # Input for low-quality slides
-    low_quality_slides = st.text_input("Low Quality Slides (Comma-separated)", value="")
-    
+
     if st.button("Start Generate"):
-        pdf_filename = uploaded_file.name  
-        base_filename = os.path.splitext(pdf_filename)[0]  
+        # Extract the base name of the uploaded PPT file  
+        ppt_filename = uploaded_ppt.name  
+        base_filename = os.path.splitext(ppt_filename)[0]  
         output_word_filename = f"{base_filename}.docx"  
+          
+        # Save uploaded PPT to a temporary file and upload to Azure Blob Storage  
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pptx") as temp_ppt_file:  
+            temp_ppt_file.write(uploaded_ppt.read())  
+            temp_ppt_file_path = temp_ppt_file.name  
+                        
+        upload_to_blob_storage(ppt_filename, open(temp_ppt_file_path, "rb"))  
         
-        with open("uploaded_pdf.pdf", "wb") as f:
-            f.write(uploaded_file.getbuffer())
+        # Download the PPT file from Azure Blob Storage  
+        ppt_blob = download_from_blob_storage(ppt_filename)  
+        if not ppt_blob:  
+            st.error("Failed to download PPT file from Azure Blob Storage.")  
+            return  
+            
+        # Convert PPT to PDF  
+        with open("uploaded_ppt.pptx", "wb") as f:  
+            f.write(ppt_blob.read())  
+                    
+        if not ppt_to_pdf("uploaded_ppt.pptx", "uploaded_pdf.pdf"):  
+            st.error("PDF conversion failed. Please check the uploaded PPT file.")  
+            return  
+        
+        # uploaded_file = "uploaded_pdf.pdf"
+
+
+        # with open("uploaded_pdf.pdf", "wb") as f:
+        #     f.write(uploaded_file.getbuffer())
 
         # Extract text and titles using LLM
         # slide_data = extract_titles_from_images("uploaded_pdf.pdf")
@@ -727,16 +987,21 @@ def main():
             
             # Generate overall theme using the extracted text content
 
+        st.success("Converted to PDF completed!")
         text_content = extract_text_from_pdf("uploaded_pdf.pdf")
         # Extract images
+        
         title = detect_title_from_pdf("uploaded_pdf.pdf")
         image_content = detect_images_from_pdf("uploaded_pdf.pdf")
+
+        low_quality_slides = identify_low_quality_slides(text_content, image_content) 
+        st.write(low_quality_slides)  
         
         slide_data = extract_titles_from_images(title)
         
         if image_content:
             # Convert low-quality slides input into list
-            low_quality_slides = [int(slide.strip()) for slide in low_quality_slides.split(",") if slide.strip().isdigit()]
+            low_quality_slides = [int(slide) for slide in low_quality_slides if isinstance(slide, int)]
             
             # Step 3: Continue with generating insights or further processing using the slide_data
             combined_text = extract_text_and_titles_from_pdf("uploaded_pdf.pdf")
@@ -745,29 +1010,14 @@ def main():
             pa = generate_prompt(overall_theme)
             # Generate insights via LLM
 
-            text_insights = generate_text_insights(text_content, text_length, overall_theme, low_quality_slides, slide_data, pa)  
-
-            for insight in text_insights:
-                st.subheader(f"[[{insight['slide_number']}, {insight['slide_title']}]]")
-                st.markdown(insight['insight'])
-                
+            text_insights = generate_text_insights(text_content, text_length, overall_theme, low_quality_slides, slide_data, pa)                  
             insights = generate_image_insights(image_content, text_length, low_quality_slides, overall_theme, pa, slide_data)
-            
-            # Display insights
-            for insight in insights:
-                st.subheader(f"[[{insight['slide_number']}, {insight['slide_title']}]]")
-                st.markdown(insight['insight'])
-
             extracted_images = extract_images_from_pdf("uploaded_pdf.pdf", top_mask, bottom_mask, left_mask, right_mask, low_quality_slides) 
                             
             aggregated_content = aggregate_content(text_insights, insights, slide_data)
-            
-            st.markdown("=======================================================================================================================")
-            for insight in text_insights:
+            for insight in aggregated_content:
                 st.subheader(f"[[{insight['slide_number']}, {insight['slide_title']}]]")
                 st.markdown(insight['insight'])
-                st.markdown("--------------------------------------------------------------------------------------------------------------------")
-            st.markdown("=======================================================================================================================")
 
             st.info("Saving to Word document...")  
             output_doc = save_content_to_word(aggregated_content, output_word_filename, extracted_images, overall_theme)
