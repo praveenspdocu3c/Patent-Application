@@ -154,7 +154,8 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
         # Remove all listed profanity words. Example for your reference: {patent_profanity_words}. 
         
         prompt = f"""{pa}
-                    Important Note: Avoid using words like 'necessity,' 'necessary,' 'necessitate,' 'consist,' 'explore,' 'key component,' 'revolutionizing,' 'innovative,' or similar terms. Use alternatives instead. Return the content in one paragraph only.
+                    Important Note: Avoid using words like 'contain', 'necessity,' 'necessary,' 'necessitate,' 'consist,' 'explore,' 'key component,' 'revolutionizing,' 'innovative,' or similar terms. Use alternatives instead. Return the content in one paragraph only.
+                    Important Note: Avoid expanding abbreviations unless instructed in the given slide. Only expand abbreviations once.
 
                     Figure Detection:
                         Identify and list all figures (diagrams, sketches, flowcharts) on the slide. Each figure, even if stacked or side by side, should be treated as separate.
@@ -187,7 +188,7 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
                     ```\ Use passive voice, except for discussing the present disclosure (use active voice like "provides").
                         Replace "Million" and "Billion" with "1,000,000" and "1,000,000,000."
                         Avoid using "invention" or "objective," replace with "present disclosure."
-                        Use technical terms and avoid expanding abbreviations unless instructed. Only expand abbreviations once.
+                        Use technical terms and Avoid expanding abbreviations unless instructed. Only expand abbreviations once.
                         Turn bullet points into sentences without summarizing them. /```
         """   
 
@@ -764,11 +765,11 @@ def is_low_quality_image_slide(image_data):
     # Create prompt to assess the slide based on the slide number
     prompt = f"""
     State whether the slide is low quality. 
-    If the title contains 'introduction', 'contents', 'thank you', or 'inventor details', consider it low quality.
     If it mostly contains text, check the slide has more than 30 words if it has then consider it high quality, 
     If the slide has less then 20 words without any image in it then consider it low quality.
     If it contains diagrams, figures, graphs, tables, charts, or images, consider it high quality. 
     If the title contains 'summary' then check for whether the slide has more than 30 words if it has then consider it high quality.
+    If the title contains 'introduction', 'contents', 'thank you', or 'inventor details', consider it low quality.
     """
     
     data = {
