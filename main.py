@@ -127,7 +127,7 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
     insights = []
     
     # Set temperature based on text length
-    temperature = 0.3 if text_length == "Standard" else 0.5 if text_length == "Blend" else 0.7
+    temperature = 0.0 if text_length == "Standard" else 0.5 if text_length == "Blend" else 0.7
     
     for image_data in image_content:  
         slide_number = image_data['slide_number']  
@@ -154,88 +154,41 @@ def generate_image_insights(image_content, text_length, low_quality_slides, over
         # Remove all listed profanity words. Example for your reference: {patent_profanity_words}. 
         
         prompt = f"""{pa}
+                    Important Note: Avoid using words like 'necessity,' 'necessary,' 'necessitate,' 'consist,' 'explore,' 'key component,' 'revolutionizing,' 'innovative,' or similar terms. Use alternatives instead. Return the content in one paragraph only.
 
-        Important Note: While generating content, avoid using the following words and their related forms: 'necessity,' 'necessary', 'necessitate', 'necessitating', 'necessitate,' 'consist,' 'consisting,' 'explore,' 'exploration,' 'key component,' 'revolutionizing,' 'innovative,' or any similar adjectives. Instead, use alternative words or phrases as replacements.
+                    Figure Detection:
+                        Identify and list all figures (diagrams, sketches, flowcharts) on the slide. Each figure, even if stacked or side by side, should be treated as separate.
 
-        Step 1: Detect and list all figures on the slide, ensuring none are missed. This includes figures arranged in parallel, adjacent, or stacked. Treat each diagram, sketch, or flowchart as a separate figure.
-        [ Special Case: If no figures (images, diagrams, sketches, or flowcharts) are present, follow these instructions based on the slide title:
+                    If no figures are found, follow these instructions based on the slide title:
+                    ```\ If the title doesn’t contain "Background" or "Proposal": Start with "Aspects of the present disclosure include..." and focus on the main points.
+                        If the title includes "Invention" or "Proposal": Start with "The present disclosure includes..." and focus on the invention or proposal.
+                        If the title includes "Background" or "Motivation": Start with "The prior solutions include..." and focus only on prior solutions. /```
 
-        (a) If the title includes "Invention" or "Proposal," start with:
-        "The present disclosure includes..."
-        Focus on the proposal or invention, without mentioning background information.
-
-        (b) If the title includes "Background" or "Motivation," start with:
-        "The prior solutions include..."
-        Focus on prior solutions only, without including proposals.
-
-        (c) If the title doesn't include "Background" or "Proposal," start with:
-        "Aspects of the present disclosure include..."
-        Focus on the slide's main points, without mentioning prior solutions or proposals. 
-
-        Write a clear, concise paragraph without using phrases like "The slide presents" or "discusses." 
-        Ignore all other steps (1a-14) and prioritize these rules.]
-
-        Step 1(a): Reference all figures explicitly and in order, like:
-            "Referring to Figure {image_ref}(a), Figure {image_ref}(b)…"
-            For multiple figures, ensure each is mentioned and referenced individually.
-
-        Step 1(b): Check that all figures are referenced in order. The references must come before any detailed descriptions.
-        
-        Step 1(c): After referencing, describe each figure individually in order:
-            "Figure {image_ref}(a) illustrates..."
-            "Figure {image_ref}(b) shows..."
-            Explain each figure thoroughly, covering its role and relevance.
-        
-        Step 1(d): If any figures are missing or references are combined (e.g., "the figures" instead of individually), flag the response and note the issue.
-        
-        Step 1(e): For slides with complex or overlapping figures, explain their relationships clearly, using precise references like:
-        "Figure {image_ref}(a) interacts with Figure {image_ref}(b)…"
-        Step 2-5: Adjust your explanation based on the slide title:        
-            (2) If the title doesn't contain "Background" or "Proposal," start with:
-            "Aspects of the present disclosure include..."
-            Focus on the main points.
-
-            (3) If the title contains "Background" or "Motivation," start with:
-            "The prior solutions include..."
-            Focus only on prior solutions.
-
-            (4) If the title contains "Proposal," start with:
-            "The present disclosure includes..."
-            Focus on the proposal or invention only.
-        Step 6: For graphs, explain the overall meaning and describe the x and y axes in detail.
-        Step 7: For images with perspective views, identify and describe the perspective, including angles, depth, and spatial relationships.
-        Step 8: Refer to images specifically, avoiding labels like "left figure" or "right figure."
-        Step 9: Ensure any use of the word "example" is reproduced exactly as shown and fully explained. Avoid combining examples into a single sentence without proper references.        
-                Additionally, I have a slide with the following bullet points:  
-                Point 1: [Your first point]  
-                Point 2: [Your second point]  
-                Point 3: [Your third point, which includes examples Eg 1 and Eg 2]  
-                Please generate a cohesive paragraph that integrates these points while ensuring that all examples are specifically called out and fully explained. Always use the word "example" each time it appears in the content, and maintain clarity and continuity in the overall description.  
-                        
-        Step 10-12: Avoid starting explanations with phrases like "The slide," "The text," or "The image" for a natural flow.        
-        Step 13: After referencing a figure, always start the next sentence with:
-            "In this aspect..."
-            Follow this with a detailed explanation.
-        Step 14: Analyze and reproduce the text content before describing any images. Integrate both text and image content smoothly.
-        Step 15: Style Guide Instructions:
-            (a) Remove all listed profanity words example: {patent_profanity_words}. 
-            (b) Use passive voice throughout.
-            (c) Replace "Million" and "Billion" with "1,000,000" and "1,000,000,000."
-            (d) Keep the tone precise, formal, and objective.
-            (e) Use detailed technical jargon.
-            (f) Organize explanations systematically with terms like "defined as" or "for example."
-            (g) Use conditional language like "may include" or "by way of example."
-            (h) Maintain exact wording—don't replace terms with synonyms.
-            (i) Use definitive language when discussing the current disclosure.
-            (j) Ensure accurate representation of figures, flowcharts, and equations.
-            (k) Avoid specific words like "revolutionizing" or "innovative."
-            (l) Remove redundant expansion of abbreviations.
-
-        Important Note: Return content only in a single paragraph.
-        Important Note: Give importance to equations that are presented in the Slide.
-        Important Note: Don't consider equation as Images.
-        Important Note: Do not expand abbreviations on its own unless mentioned in the slide. 
-        Important Note: Only expand abbreviations one time throughout the entire content.
+                    If figures are present, follow these steps based on the slide title:
+                        Mention and reference each figure in order (e.g., "Referring to Figure {slide_number}(a), Figure {slide_number}(b)..."). Clearly explain each figure, covering its role and relevance.
+                        Note: If the figure number is already mentioned on the slide, ignore it and instead use "{slide_number}" as the figure number.
+                        Steps:
+                       ```\ Reference figures in order: "Referring to Figure {slide_number}(a), Figure {slide_number}(b)…" Each figure must be mentioned individually.
+                            Check that figures are referenced in order before any detailed descriptions.
+                            After referencing, describe each figure individually: "Figure {slide_number}(a) illustrates...", "Figure {slide_number}(b) shows..." Explain the figures in detail.
+                            Flag any issues if figures are missing or combined improperly (e.g., "the figures" instead of individual references).
+                            For complex or overlapping figures, explain their relationships clearly, such as "Figure {slide_number}(a) interacts with Figure {slide_number}(b)..."
+                            After Figure Reference:
+                                Begin the next sentence with: "In this aspect..." followed by a detailed explanation.
+                    
+                            For Graphs:
+                                Describe the x and y axes and explain the overall meaning.
+                            For Images:
+                                Identify angles, depth, and spatial relationships for images with perspective views. Refer to images specifically (avoid terms like "left" or "right" figure).
+                            Natural Flow:
+                                Avoid phrases like "The slide shows..." or "The image presents..." to ensure a natural flow. /```
+                    
+                    Style Guide:
+                    ```\ Use passive voice, except for discussing the present disclosure (use active voice like "provides").
+                        Replace "Million" and "Billion" with "1,000,000" and "1,000,000,000."
+                        Avoid using "invention" or "objective," replace with "present disclosure."
+                        Use technical terms and avoid expanding abbreviations unless instructed. Only expand abbreviations once.
+                        Turn bullet points into sentences without summarizing them. /```
         """   
 
         data = {  
@@ -279,7 +232,7 @@ def generate_text_insights(text_content, text_length, theme, low_quality_slides,
   
     # Set temperature based on text_length  
     if text_length == "Standard":  
-        temperature = 0.3  
+        temperature = 0.0  
     elif text_length == "Blend":  
         temperature = 0.5  
     elif text_length == "Creative":  
@@ -797,7 +750,7 @@ def identify_low_quality_slides(text_content, image_slides):
             low_quality_slides.add(slide_number)  
         
         # Check for generic terms
-        if any(generic in slide['text'].lower() for generic in ["introduction", "thank you", "inventor details"]):  
+        if any(generic in slide['text'].lower() for generic in ["introduction", "thank you", "inventor details", "contents"]):  
             low_quality_slides.add(slide_number)
             
     return low_quality_slides
@@ -811,11 +764,11 @@ def is_low_quality_image_slide(image_data):
     # Create prompt to assess the slide based on the slide number
     prompt = f"""
     State whether the slide is low quality. 
+    If the title contains 'introduction', 'contents', 'thank you', or 'inventor details', consider it low quality.
     If it mostly contains text, check the slide has more than 30 words if it has then consider it high quality, 
     If the slide has less then 20 words without any image in it then consider it low quality.
     If it contains diagrams, figures, graphs, tables, charts, or images, consider it high quality. 
-    if the title contains 'summary' then check for whether the slide has more than 30 words if it has then consider it high quality.
-    Also, if the title contains 'introduction', 'thank you', or 'inventor details', consider it low quality.
+    If the title contains 'summary' then check for whether the slide has more than 30 words if it has then consider it high quality.
     """
     
     data = {
