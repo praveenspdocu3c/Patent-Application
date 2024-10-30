@@ -1,4 +1,4 @@
-# Last Final updated version
+# Last Final updated version (Renamed variables based on Feedback & Needeed for Development updated version)
 
 import os
 import re
@@ -474,9 +474,9 @@ def generate_image_insights(
     return insights
 
 
-def continued_title_check(slide_data, low_quality_slides):
+def continued_title_check(slide_data):
     continued = []
-    pa = "You are tasked with identifying slides that share the same title. Once you detect identical titles across slides, check if any of these titles are followed by '(continued...)'. If a slide with the same title includes '(continued...)', return all the slides with the identical title, including those marked with '(continued...)' and those without. Ensure that slides are grouped appropriately based on title similarity and the presence of '(continued...)'. "
+    pa = "You are tasked with identifying slides that share the same title. Once you detect identical titles across slides, check if any of these titles are followed by '(Continued...)'. If a slide with the same title includes '(Continued...)', return all the slides with the identical title, including those marked with '(Continued...)' and those without. Ensure that slides are grouped appropriately based on title similarity and the presence of '(Continued...)'. "
 
     for sl in slide_data:
         slide_number = sl["slide_number"]
@@ -493,7 +493,8 @@ def continued_title_check(slide_data, low_quality_slides):
         # Remove all listed profanity words. Example for your reference: {patent_profanity_words}.
 
         prompt = f""" 
-        Check for slides with identical titles. If multiple slides share the same title, verify if any of these slides have the same title followed by '(continued...)'. If any of the identical titled slides include '(continued...)', return all slides with that title, both with and without '(continued...)' in the title.        
+        Check for slides with identical titles. If multiple slides share the same title, verify if any of these slides have the same title followed by '(Continued...)'. If any of the identical titled slides include '(Continued...)', return all slides with that title, both with and without '(Continued...)' in the title.        
+        Note: To qualify as identical titles, at least one of the titles must include "Continued...". If "Continued..." is not present in any of the titles, they should not be considered identical, and the response should be: "No".
         Slide Data: {slide_data}
         Example output format for identical titled slides Matched [Only return Output like this]: Yes, [3,4,5]
         Example output format for No identical titled slides Matched [Only return Output like this]: No
@@ -533,6 +534,7 @@ def continued_title_check(slide_data, low_quality_slides):
                 st.sidebar.write("Error: 'choices' key not found in the response.")
 
         except Exception as e:
+            # Error Handling in Backend
             print(f"Error: {str(e)}")
 
     return continued
@@ -658,7 +660,6 @@ def generate_text_insights(
                 }
             )
 
-    print(insights)
     return insights
 
 
@@ -693,8 +694,7 @@ def generate_prompt(overall_theme):
         return "You are a Patent Attorney specializing in generating content based on the document content"
 
 
-# Function to detect images, flowcharts, and diagrams from the PDF
-def detect_title_from_pdf(pdf_path):
+def extract_slide_images_for_title_extraction(pdf_path):
     doc = fitz.open(pdf_path)
     image_content = []
 
@@ -744,7 +744,7 @@ def detect_images_from_pdf(pdf_path):
 
         if len(significant_contours) > 0.5:
             image_content.append({"slide_number": page_num + 1, "image": img_np})
-            st.success(page_num + 1)
+            # st.success(page_num + 1)
 
     return image_content
 
@@ -790,7 +790,6 @@ def extract_text_and_titles_from_pdf(pdf_path):
 import ast
 
 def generate_continue_insights(
-    image_content,
     text_length,
     continued_check,
     image_slides,
@@ -799,9 +798,6 @@ def generate_continue_insights(
     slide_data,
 ):
     insights = []
-
-    # Debugging line: Check the structure of continued_check
-    print(f"Type of continued_check: {type(continued_check)}, Value: {continued_check}")
 
     # Set temperature based on text length
     temperature = (
@@ -842,7 +838,7 @@ def generate_continue_insights(
             slide_number = image_data["slide_number"]
             if slide_number in continued_slide_numbers:
                 slide_number_img = slide_number
-                st.warning(slide_number_img)
+                # st.warning(slide_number_img)
                 combined_images.append(image_data)
                 if combined_title is None:
                     # Get the title from the first slide and strip "(Continued)"
@@ -924,8 +920,7 @@ def generate_continue_insights(
                     #     Describe spatial relationships without directional terms: When explaining spatial aspects in the figures, focus on angles, depth, and interactions without using directional words like "left" or "right".
                     #     Explain roles and relevance: Discuss the significance of each element and how it contributes to the overall process or concept being described.
 
-            print(combined_text)
-            st.error(slide_number_img)
+            # st.error(slide_number_img)
             prompt =f"""Objective:
                             Generate a detailed paragraph based on the provided slides, integrating both textual content and visual elements seamlessly. 
                             The response should prioritize the text content and use it explain the figures or images or diagrams or graphs or charts or equations. 
@@ -982,13 +977,11 @@ def generate_continue_insights(
                     Turn bullet points into sentences without summarizing them. /```
 Slide:
             """
-
+            
+            messages = []
             # Add images as individual message components
             for img_b64 in base64_images:
-                print(
-                    "-----------------------------------------------------------------------------------------------------------------"
-                )
-            #     messages.append({"role": "user", "content": {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}})
+                messages.append({"role": "user", "content": {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}})
 
             data = {
                 "model": model,
@@ -1219,7 +1212,7 @@ def save_content_to_word(aggregated_content, output_file_name, extracted_images,
             doc.add_heading(f"[[{slide_numbers}, {sanitized_title}]]", level=1)
             doc.add_paragraph(f"{slide['insight']}")
         else:
-            print(f"Invalid slide structure: {slide}")
+            st.error(f"Invalid slide structure: {slide}")
             # doc.add_heading(f"[[{slide['slide_numbers']}, {slide['sanitized_title']}]]")
             # doc.add_paragraph(f"{slide['insight']}")
 
@@ -1323,30 +1316,6 @@ def extract_images_from_pdf(
 
     pdf_document.close()
     return page_images
-
-
-# def aggregate_content(text_insights, image_insights, slide_data):
-#     aggregated_content = []
-#     for img in image_insights:
-#         slide_number = img['slide_number']
-#         slide_title = img['slide_title']
-#         image_insight = img['insight']
-
-#     for text in text_insights:
-#         slide_number = text['slide_number']
-#         slide_title = text['slide_title']
-#         text_insight = text['insight']
-
-#     for slide in slide_data:
-#         if image_insight:
-#             content = f"[[{slide_number}, {slide_title}]]{image_insight}"
-#             print("---------------------------------------------------------------------------------------------------------------------------")
-#             print(content)
-#         else:
-#             content = f"[[{slide_number}, {slide_title}]]{text_insight}"
-#         aggregated_content.append(content)
-
-#     return aggregated_content
 
 
 def aggregate_content(text_insights, image_insights, slide_data, continue_insights):
@@ -1711,16 +1680,16 @@ def main():
         text_content = extract_text_from_pdf("uploaded_pdf.pdf")
         # Extract images
 
-        title = detect_title_from_pdf("uploaded_pdf.pdf")
+        title_slide_images = extract_slide_images_for_title_extraction("uploaded_pdf.pdf")
         image_content = detect_images_from_pdf("uploaded_pdf.pdf")
 
         low_quality_slides = identify_low_quality_slides(text_content, image_content)
         # st.write(low_quality_slides)
 
-        slide_data = extract_titles_from_images(title)
+        slide_data = extract_titles_from_images(title_slide_images)
 
-        continued_check = continued_title_check(slide_data, low_quality_slides)
-        st.sidebar.write(continued_check)
+        continued_check = continued_title_check(slide_data)
+        # st.sidebar.write(continued_check)
 
         if image_content:
             # Convert low-quality slides input into list
@@ -1754,9 +1723,7 @@ def main():
             
             continue_insights = []
             if continued_check != []: 
-                st.warning("Inside")
                 continue_insights = generate_continue_insights(
-                    title,
                     text_length,
                     continued_check,
                     image_content,
