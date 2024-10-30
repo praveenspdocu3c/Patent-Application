@@ -409,11 +409,11 @@ def generate_image_insights(
                                 Natural Flow:
                                     Avoid phrases like "The slide shows..." or "The image presents..." to ensure a natural flow. /```
                         
-                Check for Unintended Phrases:
-                    Before finalizing, ensure that the phrase “Reference to figure” does not appear at the beginning of the content unless it is intentional.
+                        Check for Unintended Phrases:
+                            Before finalizing, ensure that the phrase “Reference to figure” does not appear at the beginning of the content unless it is intentional.
 
                         If no figures are found, follow these instructions based on the slide title:
-                        ```/ If the title doesn’t contain "Background" or "Proposal": Start with "Aspects of the present disclosure include..." and focus on the main points.
+                        ```/If the title doesn’t contain "Background" or "Proposal": Start with "Aspects of the present disclosure include..." and focus on the main points.
                             If the title includes "Invention" or "Proposal": Start with "The present disclosure includes..." and focus on the invention or proposal.
                             If the title includes "Background" or "Motivation": Start with "The prior solutions include..." and focus only on prior solutions. /``` 
                                                 
@@ -1720,7 +1720,7 @@ def main():
         slide_data = extract_titles_from_images(title)
 
         continued_check = continued_title_check(slide_data, low_quality_slides)
-        # st.sidebar.write(continued_check)
+        st.sidebar.write(continued_check)
 
         if image_content:
             # Convert low-quality slides input into list
@@ -1751,16 +1751,19 @@ def main():
                 pa,
                 slide_data,
             )
-
-            continue_insights = generate_continue_insights(
-                title,
-                text_length,
-                continued_check,
-                image_content,
-                text_content,
-                pa,
-                slide_data,
-            )
+            
+            continue_insights = []
+            if continued_check != []: 
+                st.warning("Inside")
+                continue_insights = generate_continue_insights(
+                    title,
+                    text_length,
+                    continued_check,
+                    image_content,
+                    text_content,
+                    pa,
+                    slide_data,
+                )
             # for continue_insight in continue_insights:
             #     # Now continue_insight is a dictionary, so you can access keys like 'slide_number' and 'slide_title'
             #     st.subheader(
