@@ -526,7 +526,7 @@ def continued_title_check(slide_data):
                 ]  # Access the message content
                 # st.sidebar.write(sp)
                 sp = sp.split("Yes,", 1)[1].strip()
-                st.sidebar.write(sp)
+                # st.sidebar.write(sp)
 
                 if sp:  # Check if the response contains "Yes"
                     continued.append({"set_of_slides": sp})
