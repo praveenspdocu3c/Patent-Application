@@ -297,7 +297,6 @@ def extract_titles_from_images(image_content):
 
     return slide_data
 
-
 # Function to generate insights for images via LLM
 def generate_image_insights(
     image_content, text_length, low_quality_slides, system_prompt, slide_data,
@@ -334,7 +333,7 @@ def generate_image_insights(
             "Untitled Slide",
         )
 
-        headers = {"Content-Type": "application/json", "api-key": api_key}
+        headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
 
         prompt = f"""
                     Important Note: Avoid using words like 'contain', 'necessity', 'necessary', 'necessitate', 'contain' , 'contains' , 'consist,' 'explore' , 'key component' , 'revolutionizing',  'innovative' , or similar terms. Use alternatives instead. Return the content in one paragraph only.
@@ -378,10 +377,9 @@ def generate_image_insights(
             "messages": [
                 {
                     "role": "system",
-                    "content": f"""  {system_prompt}\n\n 
-                                                    Your task is to generate content based on the provided slide while adhering to the following instructions: 
-                                                    When generating content, avoid using the words "necessary" and "contain." Instead, use alternatives like "required."
-                                                    {prompt} """,
+                    "content": f""" {system_prompt}\n\n 
+                                    Your task is to generate content based on the provided slide while adhering to the following instructions: 
+                                    {prompt} """,
                 },
                 {
                     "role": "user",
@@ -404,12 +402,15 @@ def generate_image_insights(
             data=json.dumps(data),
         )
 
+        llm_result = response.json()["choices"][0]["message"]["content"]
+        res_content = replace_disallowed_words(llm_result)  
+        
         if response.status_code == 200:
             insights.append(
                 {
                     "slide_number": slide_number,
                     "slide_title": slide_title,
-                    "insight": response.json()["choices"][0]["message"]["content"],
+                    "insight": res_content,
                 }
             )
         else:
@@ -439,10 +440,9 @@ def continued_title_check(slide_data):
         #     slide_number = image_data['slide_number']
         #     base64_image = encode_image(image_data['image'])
 
-    headers = {"Content-Type": "application/json", "api-key": api_key}
+    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
 
     # Overall Content for your Understanding : {overall_theme}\n Use the Overall Content as reference
-    # Remove all listed profanity words. Example for your reference: {patent_profanity_words}.
 
     prompt = f""" 
     Check for slides with identical titles. If multiple slides share the same title, verify if any of these slides have the same title followed by '(Continued...)'. If any of the identical titled slides include '(Continued...)', return all slides with that title, both with and without '(Continued...)' in the title.        
@@ -496,7 +496,7 @@ def continued_title_check(slide_data):
 def generate_text_insights(
     text_content, text_length, low_quality_slides, slide_data, system_prompt
 ):
-    headers = {"Content-Type": "application/json", "api-key": api_key}
+    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
     insights = []
 
     # Set temperature based on text_length
@@ -529,7 +529,7 @@ def generate_text_insights(
 
         I want you to begin with one of the following phrases based on the slide title: 
         
-        (a) If the title includes "Invention" or "Proposal," start with:
+        (a) If the title includes "Invention" or "Proposal", start with:
         "The present disclosure includes..."
         Focus on the proposal or invention, without mentioning background information.
 
@@ -579,8 +579,7 @@ def generate_text_insights(
         data = {
             "model": model,
             "messages": [
-                {"role": "system", "content": f"""{system_prompt}
-                                                   When generating content, avoid using the words "necessary" and "contain" and its related words. Instead, use alternatives like "required." """},
+                {"role": "system", "content": f"""{system_prompt}"""},
                 {"role": "user", "content": prompt},
             ],
             "temperature": temperature,
@@ -592,20 +591,15 @@ def generate_text_insights(
             json=data,
         )
 
-        # if response.status_code == 200:
-        #     result = response.json()
-        #     insights.append({"slide_number": slide['slide_number'], "slide_title": slide['slide_title'], "insight": result["choices"][0]["message"]["content"]})
-        # else:
-        #     st.error(f"Error: {response.status_code} - {response.text}")
-        #     insights.append({"slide_number": slide['slide_number'], "slide_title": slide['slide_title'], "insight": "Error in generating insight"})
-        # return insights
-
+        llm_result = response.json()["choices"][0]["message"]["content"]
+        res_content = replace_disallowed_words(llm_result)  
+                    
         if response.status_code == 200:
             insights.append(
                 {
                     "slide_number": slide_number,
                     "slide_title": slide_title,
-                    "insight": response.json()["choices"][0]["message"]["content"],
+                    "insight": res_content,
                 }
             )
         else:
@@ -616,12 +610,12 @@ def generate_text_insights(
                     "insight": "Error generating insight.",
                 }
             )
-
+            
     return insights
 
 
 def generate_prompt(overall_theme):
-    headers = {"Content-Type": "application/json", "api-key": api_key}
+    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
 
     # Generate an overall theme of the following document content: {text_content}
     prompt = f"Create a perfect system prompt based on the given content: {overall_theme}\n [Note: Return output in single line starting with 'You are a Patent Attorney specializing..]"
@@ -822,17 +816,16 @@ def generate_continue_insights(
                     
                     st.error(slide_number_img)
                     prompt =f"""{system_prompt}
-                    
-                                Let's think step by step 
-                                 
-                                Objective:
-                                    Generate a detailed paragraph based on the provided slides, integrating both textual content and visual elements seamlessly. 
-                                    The response should prioritize the text content and use it explain the figures or images or diagrams or graphs or charts or equations. 
-                                    Ensure the explanations are well-structured and focused on integrating the textual information along with the figures or images or diagrams or graphs or charts or equations content.
-                                    
+                                                     
+                            Objective:
+                                Generate a detailed paragraph based on the provided slides, integrating both textual content and visual elements seamlessly. 
+                                The response should prioritize the text content and use it explain the figures or images or diagrams or graphs or charts or equations. 
+                                Ensure the explanations are well-structured and focused on integrating the textual information along with the figures or images or diagrams or graphs or charts or equations content.
+                                     
                                 Slide Information:
                                     Slide Reference: {slide_number_img}
-                                    Title: sketchs
+
+                            Let's think step by step:
 
                             Please provide a comprehensive explanation of all figures (including diagrams, drawings, and sketches) mentioned in the following text:                        
                             Refer to the following text to provide a detailed explanation of the mentioned figures or images or diagrams or graphs or charts: `````{combined_text }`````\n\n
@@ -841,9 +834,10 @@ def generate_continue_insights(
                             Identify and describe all elements in the figures: Carefully recognize and explain each component in the figures, including any labels, legends, and annotations.
                             Focus on the operational flow: Provide a detailed explanation of the working process depicted in the figures, describing how each element interacts within the system.
                             Use exact terms from labels and legends: Maintain consistency by using the precise terms provided in the figures' labels or legends, without referencing phrases like "labelled parts" or "as indicated by the legend".
+                            When generating content, avoid using the words "necessary" and "contain" and its related words. Instead, use alternatives like "required."
                             Supplement with additional details from the figures: Incorporate any extra information from the figures that isn't explicitly mentioned in the text.
                             Describe spatial relationships without directional terms: When explaining spatial aspects in the figures, focus on angles, depth, and interactions without using directional words like "left" or "right".
-                            Explain roles and relevance: Discuss the significance of each element and how it contributes to the overall process or concept being described.
+                            Explain roles and relevance: Explain the significance of each element and how it contributes to the overall process or concept being described.
                                                                             
                             Important Note: Avoid using words like 'contain', 'necessity', 'necessary', 'necessitate', 'contain' , 'contains' , 'consist,' 'explore' , 'key component' , 'revolutionizing',  'innovative' , or similar terms. Use alternatives instead. Return the content in one paragraph only.
                             Important Note: Avoid expanding abbreviations unless instructed in the given slide. Only expand abbreviations once. 
@@ -862,8 +856,9 @@ def generate_continue_insights(
                                     Flag any issues if figures are missing or combined improperly (e.g., "the figures" instead of individual references).
                                     For complex or overlapping figures, explain their relationships clearly, such as "Figure {slide_number_img}(a) interacts with Figure {slide_number_img}(b)..."  
                                     After Figure Reference follow these instructions based on the slide title from the Image slide:
-                                        If the Image title includes "Background" or "Motivation" or "Discussion": Start with "Referring to Figure {slide_number_img}, In this prior solutions include..." and focus only on prior solutions.
-                                        If the Image title includes "Invention" or "Proposal": Start with "Referring to Figure {slide_number_img}, In this present disclosure includes..." and focus on the invention or proposal.                         
+                                    If Image the title includes "Discussion" or "Motivation": Start with "Referring to Figure {slide_number_img}, In this prior solutions include..." and focus only on prior solutions.
+                                    If Image the title includes "Background": Start with "Referring to Figure {slide_number_img}, In this prior solutions include..." and focus only on prior solutions.
+                                    If Image the title includes "Invention" or "Proposal": Start with "Referring to Figure {slide_number_img}, In this present disclosure includes..." and focus on the invention or proposal.                         
                                     
                                     For Graphs:
                                         Describe the x and y axes and explain the overall meaning.
@@ -872,7 +867,7 @@ def generate_continue_insights(
                                     Natural Flow:
                                         Avoid phrases like "The slide shows..." or "The image presents..." to ensure a natural flow. /```
                                         
-                        When generating content, avoid using the words "necessary" and "contain" and its related words. Instead, use alternatives like "required."
+
                                     
                         Style Guide:
                         ```/ Use passive voice, except for discussing the present disclosure (use active voice like "provides"). 
@@ -880,7 +875,7 @@ def generate_continue_insights(
                             Avoid using "invention" or "objective," replace with "present disclosure."
                             Use technical terms and Avoid expanding abbreviations unless instructed. Only expand abbreviations once.
                             Turn bullet points into sentences without summarizing them. /```
-        Slide:
+                Slide:
                     """
 
                         # If the Image title does not contain "Background", "Motivation", "Invention", "Proposal": Start with "Referring to Figure {slide_number_img}, In this aspect..." followed by a detailed explanation.                                    
@@ -897,7 +892,7 @@ def generate_continue_insights(
                     data = {
                         "model": model,
                         "messages": [
-                            {"role": "system", "content": f"{prompt} "},
+                            {"role": "system", "content": f"""{prompt}"""},
                             {
                                 "role": "user",
                                 "content": [
@@ -911,7 +906,118 @@ def generate_continue_insights(
                         "temperature": temperature,
                     }
 
-                    headers = {"Content-Type": "application/json", "api-key": api_key}
+                    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
+
+                    response = requests.post(
+                        f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
+                        headers=headers,
+                        json=data,
+                    )
+
+                    # response_data = response.json()
+                    # sp = response_data['choices'][0]['message']['content']
+                    # st.write(sp)
+                    
+                    llm_result = response.json()["choices"][0]["message"]["content"]
+                    res_content = replace_disallowed_words(llm_result)  
+                    
+                    # Process the response
+                    if response.status_code == 200:
+                        insights.append(
+                            {
+                                "slide_number": combined_slide_ref,
+                                "slide_title": combined_title,
+                                "insight": res_content,
+                            }
+                        )
+                    else:
+                        insights.append(
+                            {
+                                "slide_number": combined_slide_ref,
+                                "slide_title": combined_title,
+                                "insight": response.json(),
+                            }
+                        )                        
+                
+                if  combined_title and combined_text and combined_images == []:
+                    combined_slide_ref = ",".join(map(str, continued_slide_numbers))
+                    prompt =f"""{system_prompt}
+                                                            
+                                Objective:
+                                                                                
+                                Important Note: Avoid using words like 'contain', 'necessity', 'necessary', 'necessitate', 'contain' , 'contains' , 'consist,' 'explore' , 'key component' , 'revolutionizing',  'innovative' , or similar terms. Use alternatives instead. Return the content in one paragraph only.
+                                Important Note: Avoid expanding abbreviations unless instructed in the given slide. Only expand abbreviations once. 
+
+                                I want you to begin with one of the following phrases based on the slide title: 
+                                
+                                (a) If the title includes "Invention" or "Proposal", start with:
+                                "The present disclosure includes..."
+                                Focus on the proposal or invention, without mentioning background information.
+
+                                (b) If the title includes "Background" or "Motivation," start with:
+                                "The prior solutions include..."
+                                Focus on prior solutions only, without including proposals.
+
+                                (c) If the title doesn't include "Background" or "Proposal," start with:
+                                "Aspects of the present disclosure include..."
+                                Focus on the slide's main points, without mentioning prior solutions or proposals. 
+                        
+                                The information should be delivered in a structured, clear, and concise paragraph while avoiding phrases like 'The slide presents,' 'discusses,' 'outlines,' or 'content.' Summarize all major points without bullet points.  
+                                When generating content, avoid using the words "necessary" and "contain" and its related words. Instead, use alternatives like "required."
+                                
+                                Note: Turn bullet points into sentences without summarizing them and make sure to mention all the reference numbers included in the points.
+                                
+                                Follow these detailed style guidelines for the generated content:          
+                                    (a) Remove all listed profanity words: {patent_profanity_words}\n. 
+                                    (b) Use passive voice, except for discussing the present disclosure (use active voice like "provides").
+                                    (c) Replace "Million" and "Billion" with "1,000,000" and "1,000,000,000."
+                                    (d) Avoid using "invention" or "objective," replace with "present disclosure."
+                                    (e) Use detailed technical jargon.
+                                    (f) Organize explanations systematically with terms like "defined as" or "for example."
+                                    (g) Turn bullet points into sentences without summarizing them.
+                                    (h) Maintain exact wording—don't replace terms with synonyms.
+                                    (i) Use definitive language when discussing the current disclosure.
+                                    (j) Avoid specific words like "revolutionizing" or "innovative."
+                                    (k) Use technical terms and Avoid expanding abbreviations unless instructed. Only expand abbreviations once. 
+                                
+                                When generating content, avoid using the words "necessary" and "contain" and its related words. Instead, use alternatives like "required."
+                                            
+                                Style Guide:
+                                ```/ Use passive voice, except for discussing the present disclosure (use active voice like "provides"). 
+                                    Replace "Million" and "Billion" with "1,000,000" and "1,000,000,000."
+                                    Avoid using "invention" or "objective," replace with "present disclosure."
+                                    Use technical terms and Avoid expanding abbreviations unless instructed. Only expand abbreviations once.
+                                    Turn bullet points into sentences without summarizing them. /```
+                                
+                                While generating  do not lose any of the given Slide Text, Include all the information from the given Text.
+                                
+                                Important Note: Return content only in a single paragraph.
+                                Important Note: Give importance to all equations that are presented in the Slide.
+                                Important Note: Don't consider equation as Images.
+                                Important Note: Do not expand abbreviations on its own unless mentioned in the slide. 
+                                Important Note: Only expand abbreviations one time throughout the entire content.\\\\
+                
+                        Slide Text: ```{combined_text}```
+                """
+
+                        # If the Image title does not contain "Background", "Motivation", "Invention", "Proposal": Start with "Referring to Figure {slide_number_img}, In this aspect..." followed by a detailed explanation.                                    
+
+                    # Add images as individual message components
+                    # messages = []
+
+                    # messages.append({"role": "user", "content": {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}})
+
+                    data = {
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": f"""{system_prompt}
+                                                            When generating content, avoid using the words "necessary" and "contain" and its related words. Instead, use alternatives like "required." """},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "temperature": temperature,
+                    }
+                    
+                    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
 
                     response = requests.post(
                         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
@@ -939,14 +1045,14 @@ def generate_continue_insights(
                                 "slide_title": combined_title,
                                 "insight": response.json(),
                             }
-                        )
-
+                        )        
+                           
     return insights
 
 
 # Function to generate an overall theme based on extracted text
 def generate_overall_theme(text_content):
-    headers = {"Content-Type": "application/json", "api-key": api_key}
+    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
 
     prompt = f"Analysis and identify the domain and subject of the patent/Invention and then generate an overall theme of the following document content: {text_content}"
 
@@ -1221,29 +1327,6 @@ def extract_images_from_pdf(
     return page_images
 
 
-# def aggregate_content(text_insights, image_insights, slide_data):
-#     aggregated_content = []
-#     for img in image_insights:
-#         slide_number = img['slide_number']
-#         slide_title = img['slide_title']
-#         image_insight = img['insight']
-
-#     for text in text_insights:
-#         slide_number = text['slide_number']
-#         slide_title = text['slide_title']
-#         text_insight = text['insight']
-
-#     for slide in slide_data:
-#         if image_insight:
-#             content = f"[[{slide_number}, {slide_title}]]{image_insight}"
-#             print("---------------------------------------------------------------------------------------------------------------------------")
-#             print(content)
-#         else:
-#             content = f"[[{slide_number}, {slide_title}]]{text_insight}"
-#         aggregated_content.append(content)
-
-#     return aggregated_content
-
 
 def aggregate_content(text_insights, image_insights, slide_data, continue_insights):
     aggregated_content = []
@@ -1396,7 +1479,7 @@ def is_low_quality_image_slide(image_data):
         "temperature": 0.3,
     }
 
-    headers = {"Content-Type": "application/json", "api-key": api_key}
+    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
 
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
@@ -1466,6 +1549,27 @@ def download_from_blob_storage(file_name):
         st.error(f"Failed to download {file_name} from Azure Blob Storage: {e}")
         return None
 
+
+# Replace disallowed words  
+def replace_disallowed_words(text):  
+    disallowed_words = {  
+        'necessary': 'required',  
+        'necessity': 'requirement',  
+        'necessitate': 'require',  
+        'necessitated': 'required',  
+        'necessitates': 'requires',  
+        'necessarily': 'inevitably',  
+        'necessitating': 'requiring',  
+        'contain': 'include',
+        'critical': 'captious',
+    }  
+    for word, replacement in disallowed_words.items():  
+        text = text.replace(word, replacement)      
+    # Ensure single paragraph output
+    text = ' '.join(text.split())
+    
+    return text
+  
 
 # Streamlit app interface update
 def main():
@@ -1679,6 +1783,7 @@ def main():
             )
 
             aggregated_content = aggregate_content(text_insights, insights, slide_data, continue_insights)
+            
             for insight in aggregated_content:
                 st.subheader(f"[[{insight['slide_number']}, {insight['slide_title']}]]")
                 st.markdown(insight["insight"])
@@ -1699,7 +1804,6 @@ def main():
             st.success("Processing completed successfully!")
         else:
             st.warning("No images, flowcharts, or diagrams detected in the PDF.")
-
 
 if __name__ == "__main__":
     main()
