@@ -1,3 +1,5 @@
+# Final Version 
+
 import os
 import re
 import streamlit as st
@@ -14,6 +16,9 @@ import json
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient  # type: ignore
 from azure.core.exceptions import ResourceExistsError
 import tempfile
+import logging
+import time
+import random
 
 # Azure OpenAI credentials
 azure_endpoint = "https://theswedes.openai.azure.com/" 
@@ -395,32 +400,43 @@ def generate_image_insights(
             ],
             "temperature": temperature,
         }
-
-        response = requests.post(
-            f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
-            headers=headers,
-            data=json.dumps(data),
-        )
-
-        llm_result = response.json()["choices"][0]["message"]["content"]
-        res_content = replace_disallowed_words(llm_result)  
         
-        if response.status_code == 200:
-            insights.append(
-                {
-                    "slide_number": slide_number,
-                    "slide_title": slide_title,
-                    "insight": res_content,
-                }
+        attempt = 0
+        try:
+            response = requests.post(
+                f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
+                headers=headers,
+                data=json.dumps(data),
             )
-        else:
-            insights.append(
-                {
-                    "slide_number": slide_number,
-                    "slide_title": slide_title,
-                    "insight": "Error generating insight.",
-                }
-            )
+
+            llm_result = response.json()["choices"][0]["message"]["content"]
+            res_content = replace_disallowed_words(llm_result)  
+            
+            if response.status_code == 200:
+                insights.append(
+                    {
+                        "slide_number": slide_number,
+                        "slide_title": slide_title,
+                        "insight": res_content,
+                    }
+                )
+            else:
+                insights.append(
+                    {
+                        "slide_number": slide_number,
+                        "slide_title": slide_title,
+                        "insight": "Error generating insight.",
+                    }
+                )
+        except requests.exceptions.RequestException as e:
+                attempt += 1 
+                if (attempt < 4):
+                    logging.error(
+                        f"Error generating content': {e}"
+                    )
+                    # Exponential backoff with random jitter
+                    backoff_time = (2 ** attempt) + random.uniform(0, 1)
+                    time.sleep(backoff_time)
 
     return insights
 
@@ -498,6 +514,9 @@ def generate_text_insights(
 ):
     headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
     insights = []
+    max_retries=5
+    base_delay=1
+    max_delay=32
 
     # Set temperature based on text_length
     if text_length == "Standard":
@@ -584,32 +603,41 @@ def generate_text_insights(
             ],
             "temperature": temperature,
         }
-
-        response = requests.post(
-            f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
-            headers=headers,
-            json=data,
-        )
-
-        llm_result = response.json()["choices"][0]["message"]["content"]
-        res_content = replace_disallowed_words(llm_result)  
-                    
-        if response.status_code == 200:
-            insights.append(
-                {
-                    "slide_number": slide_number,
-                    "slide_title": slide_title,
-                    "insight": res_content,
-                }
+        
+        try:
+            response = requests.post(
+                f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
+                headers=headers,
+                json=data,
             )
-        else:
-            insights.append(
-                {
-                    "slide_number": slide_number,
-                    "slide_title": slide_title,
-                    "insight": "Error generating insight.",
-                }
+
+            llm_result = response.json()["choices"][0]["message"]["content"]
+            res_content = replace_disallowed_words(llm_result)  
+                        
+            if response.status_code == 200:
+                insights.append(
+                    {
+                        "slide_number": slide_number,
+                        "slide_title": slide_title,
+                        "insight": res_content,
+                    }
+                )
+            else:
+                insights.append(
+                    {
+                        "slide_number": slide_number,
+                        "slide_title": slide_title,
+                        "insight": "Error generating insight.",
+                    }
+                )
+        except requests.exceptions.RequestException as e:
+            attempt = 2
+            delay = min(max_delay, base_delay * (2**attempt))
+            jitter = random.uniform(0, delay)
+            logging.warning(
+                f"Retrying in {jitter:.2f} seconds (attempt {attempt}) due to error: {e}"
             )
+            time.sleep(jitter)            
             
     return insights
 
@@ -1720,7 +1748,12 @@ def main():
         slide_data = extract_titles_from_images(title_slide_images)
 
         continued_check = continued_title_check(slide_data)
-        st.sidebar.write(continued_check)
+        if continued_check:
+            for entry in continued_check:
+                slide_sets = entry["set_of_slides"].strip("[]").split("], [")
+                st.sidebar.write("Combined Slide Sets:")
+                for slide_set in slide_sets:
+                    st.sidebar.write(f"[{slide_set.strip()}]")
 
         if image_content:
             # Convert low-quality slides input into list
