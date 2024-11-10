@@ -1,5 +1,3 @@
-# Final Version 
-
 import os
 import re
 import streamlit as st
@@ -25,12 +23,6 @@ azure_endpoint = "https://theswedes.openai.azure.com/"
 api_key = "783973291a7c4a74a1120133309860c0"
 api_version = "2024-02-01"
 model = "GPT-4o-mini"
-
-# Azure OpenAI credentials
-# azure_endpoint = "https://gpt-4omniwithimages.openai.azure.com/"
-# api_key = "6e98566acaf24997baa39039b6e6d183"
-# api_version = "2024-02-01" 2024-07-18
-# model = "GPT-40-mini"
 
 # Azure Blob Storage credentials
 connection_string = "DefaultEndpointsProtocol=https;AccountName=patentpptapp;AccountKey=4988gBY4D2RU4zdy1NCUoORdCRYvoOziWSHK9rOVHxy9pFXfKenRqyE/P+tpFpfmNObUm/zOCjeY+AStiCS3uw==;EndpointSuffix=core.windows.net"
@@ -239,13 +231,11 @@ patent_profanity_words = [
 ]
 
 
-# Function to encode images to base64
 def encode_image(image):
     buffered = cv2.imencode(".jpg", image)[1]
     return base64.b64encode(buffered).decode("utf-8")
 
 
-# Function to extract text from the PDF and generate slide titles using LLM
 def extract_titles_from_images(image_content):
     slide_data = []
 
@@ -449,16 +439,11 @@ def continued_title_check(slide_data):
     for sl in slide_data:
         slide_number = sl["slide_number"]
         title = sl['title']
-        t_value.append(f"{slide_number} : {title}")        # if slide_number in low_quality_slides:
-        #     continue  #
+        t_value.append(f"{slide_number} : {title}")        
 
-        # for image_data in image_content:
-        #     slide_number = image_data['slide_number']
-        #     base64_image = encode_image(image_data['image'])
 
     headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
 
-    # Overall Content for your Understanding : {overall_theme}\n Use the Overall Content as reference
 
     prompt = f""" 
     Check for slides with identical titles. If multiple slides share the same title, verify if any of these slides have the same title followed by '(Continued...)'. If any of the identical titled slides include '(Continued...)', return all slides with that title, both with and without '(Continued...)' in the title.        
@@ -495,7 +480,7 @@ def continued_title_check(slide_data):
             ]  # Access the message content
             # st.sidebar.write(sp)
             sp = sp.split("Yes,", 1)[1].strip()
-            st.sidebar.write(sp)
+            #  st.sidebar.write(sp)
 
             if sp:  # Check if the response contains "Yes"
                 continued.append({"set_of_slides": sp})
@@ -504,7 +489,7 @@ def continued_title_check(slide_data):
 
     except Exception as e:
         # Developer's error handling in console
-        print(f"Error: {str(e)}")
+        logging.warning(f"Error: {str(e)}")
 
     return continued
 
@@ -722,9 +707,9 @@ def detect_images_from_pdf(pdf_path):
         )
         significant_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > 1000]
 
-        if len(significant_contours) > 0.5:
+        if len(significant_contours) > 0:
             image_content.append({"slide_number": page_num + 1, "image": img_np})
-            st.success(page_num + 1)
+            # st.success(page_num + 1)
 
     return image_content
 
@@ -842,7 +827,7 @@ def generate_continue_insights(
                     base64_images = [encode_image(img["image"]) for img in combined_images]
                     combined_slide_ref = ",".join(map(str, continued_slide_numbers))
                     
-                    st.error(slide_number_img)
+                    # st.error(slide_number_img)
                     prompt =f"""{system_prompt}
                                                      
                             Objective:
@@ -906,9 +891,6 @@ def generate_continue_insights(
                 Slide:
                     """
 
-                        # If the Image title does not contain "Background", "Motivation", "Invention", "Proposal": Start with "Referring to Figure {slide_number_img}, In this aspect..." followed by a detailed explanation.                                    
-
-                    # Add images as individual message components
                     # messages = []
                     for img_b64 in base64_images:
                         print(
@@ -1028,12 +1010,6 @@ def generate_continue_insights(
                         Slide Text: ```{combined_text}```
                 """
 
-                        # If the Image title does not contain "Background", "Motivation", "Invention", "Proposal": Start with "Referring to Figure {slide_number_img}, In this aspect..." followed by a detailed explanation.                                    
-
-                    # Add images as individual message components
-                    # messages = []
-
-                    # messages.append({"role": "user", "content": {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}})
 
                     data = {
                         "model": model,
@@ -1196,10 +1172,6 @@ def boldify_text(paragraph, text):
         text = after  # Continue with the rest of the text
     paragraph.add_run(text)  # Add any remaining regular text after the last bold part
 
-# def format_content(text):
-#     """Helper function to remove '###' at the beginning for headings."""
-#     return text[3:].strip() if text.startswith("###") else text
-
 def format_content(text):
     """Helper function to remove '###' at the beginning for headings."""
     return text.replace('### ', '').strip()
@@ -1233,7 +1205,7 @@ def save_content_to_word(aggregated_content, output_file_name, extracted_images,
             slide_number = slide.get("slide_number", "Unknown Slide")
             slide_title = slide.get("slide_title", "Unknown Title")
             sanitized_title = sanitize_text(slide_title)
-            sanitized_content = sanitize_text(slide.get("content", ""))
+            sanitized_content = sanitize_text(slide.get("insight", ""))
             properly_spaced_content = ensure_proper_spacing(sanitized_content)
 
             # Check if slide_number is string or integer
@@ -1241,7 +1213,6 @@ def save_content_to_word(aggregated_content, output_file_name, extracted_images,
                 slide_number if isinstance(slide_number, str) else f"{slide_number}"
             )
 
-            # # Debugging print to ensure content is correct
             # doc.add_heading(f"[[{slide_numbers}, {sanitized_title}]]")
             # doc.add_paragraph(f"{properly_spaced_content}")
 
@@ -1482,7 +1453,7 @@ def is_low_quality_image_slide(image_data):
     If the slide has less then 20 words without any image in it then consider it low quality.
     If it contains diagrams, figures, graphs, tables, charts, or images, consider it high quality. 
     If the title contains 'summary' then check for whether the slide has more than 30 words if it has then consider it high quality.
-    If the title contains 'introduction', 'contents', 'thank you', or 'inventor details', consider it low quality.
+    If the title contains 'Inventors', 'introduction', 'contents', 'thank you', or 'inventor details', consider it low quality.
     """
 
     data = {
@@ -1522,37 +1493,6 @@ def is_low_quality_image_slide(image_data):
     else:
         st.write(f"Error processing slide: {response.status_code}")
         return False
-
-
-# def encode_image(image_path):
-#     """Convert image to base64 for sending to LLM."""
-#     with open(image_path, "rb") as image_file:
-#         return base64.b64encode(image_file.read()).decode('utf-8')
-
-
-# def identify_low_quality_slides(text_content, image_slides):
-#     low_quality_slides = set()
-
-#     # Ensure all elements in image_slides are integers for consistent comparison
-#     image_slides = {int(slide['slide_number']) for slide in image_slides if 'slide_number' in slide}  # Extract and convert slide numbers
-
-#     for slide in text_content:
-#         slide_number = int(slide['slide_number'])  # Convert slide_number to an integer if it's not already
-
-#         # Skip if the slide number is in image_slides
-#         if slide_number in image_slides:
-#             st.write(slide_number)
-
-#         # Check word count
-#         word_count = len(slide['text'].split())
-#         if word_count < 30:
-#             low_quality_slides.add(slide_number)
-
-#         # Check for generic terms
-#         if any(generic in slide['text'].lower() for generic in ["introduction", "thank you", "inventor details"]):
-#             low_quality_slides.add(slide_number)
-
-#     return low_quality_slides
 
 
 def upload_to_blob_storage(file_name, file_data):
@@ -1694,6 +1634,10 @@ def main():
 
     if st.button("Start Generate"):
         # Extract the base name of the uploaded PPT file
+        if uploaded_ppt is None:      
+            st.error("Please upload a PPT file before proceeding.")      
+            return
+          
         ppt_filename = uploaded_ppt.name
         base_filename = os.path.splitext(ppt_filename)[0]
         output_word_filename = f"{base_filename}.docx"
@@ -1718,23 +1662,6 @@ def main():
         if not ppt_to_pdf("uploaded_ppt.pptx", "uploaded_pdf.pdf"):
             st.error("PDF conversion failed. Please check the uploaded PPT file.")
             return
-
-        # uploaded_file = "uploaded_pdf.pdf"
-
-        # with open("uploaded_pdf.pdf", "wb") as f:
-        #     f.write(uploaded_file.getbuffer())
-
-        # Extract text and titles using LLM
-        # slide_data = extract_titles_from_images("uploaded_pdf.pdf")
-
-        # if slide_data:
-        #     for slide in slide_data:
-        #         st.subheader(f"Slide {slide['page_number']} - {slide['title']}")
-        #         st.markdown(slide['content'])
-
-        # Generate overall theme using the extracted text content
-
-        # st.success("Converted to PDF completed!")
 
         text_content = extract_text_from_pdf("uploaded_pdf.pdf")
         # Extract images
@@ -1794,13 +1721,6 @@ def main():
                     slide_data,
                     system_prompt,
                 )
-
-            # for continue_insight in continue_insights:
-            #     # Now continue_insight is a dictionary, so you can access keys like 'slide_number' and 'slide_title'
-            #     st.subheader(
-            #         f"[[{continue_insight['slide_number']}, {continue_insight['slide_title']}]]"
-            #     )
-            #     st.markdown(continue_insight["insight"])
 
             st.write(
                 "--------------------------------------------------------------------------------------------------------------------------------"
