@@ -36,6 +36,7 @@ azure_function_url = "https://doc2pdf.azurewebsites.net/api/HttpTrigger1"
 
 # Function to convert PPT to PDF using Azure Function
 def ppt_to_pdf(ppt_file, pdf_file):
+    logging.info("Function to convert PPT to PDF using Azure Function") 
     mime_type = (
         "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
@@ -51,6 +52,7 @@ def ppt_to_pdf(ppt_file, pdf_file):
             return True
         else:
             st.error(f"File conversion failed with status code: {response.status_code}")
+            logging.error(f"File conversion failed with status code: {response.status_code}")
             st.error(f"Response: {response.text}")
             return False
 
@@ -238,7 +240,7 @@ def encode_image(image):
 
 def extract_titles_from_images(image_content):
     slide_data = []
-
+    logging.info("Function to extract titles from images") 
     headers = {"Content-Type": "application/json", "api-key": api_key}
 
     for image_data in image_content:
@@ -281,6 +283,7 @@ def extract_titles_from_images(image_content):
             slide_title = response.json()["choices"][0]["message"]["content"]
         else:
             slide_title = "Untitled Slide"
+            logging.warning("No Slide Title has been Found!")
 
         slide_data.append(
             {
@@ -297,7 +300,7 @@ def generate_image_insights(
     image_content, text_length, low_quality_slides, system_prompt, slide_data,
 ):
     insights = []
-
+    logging.info("Function to generate Image Insights") 
     # Set temperature based on text length
     temperature = (
         0.0 if text_length == "Standard" else 0.5 if text_length == "Blend" else 0.7
@@ -418,6 +421,7 @@ def generate_image_insights(
                         "insight": "Error generating insight.",
                     }
                 )
+                logging.critical("Error generating image insight.... (Response status is Failed)") 
         except requests.exceptions.RequestException as e:
                 attempt += 1 
                 if (attempt < 4):
@@ -433,6 +437,7 @@ def generate_image_insights(
 
 def continued_title_check(slide_data):
     continued = []
+    logging.info("Function to continued title check") 
     system_prompt = "You are tasked with identifying slides that share the same title. Once you detect identical titles across slides, check if any of these titles are followed by '(continued...)'. If a slide with the same title includes '(continued...)', return all the slides with the identical title, including those marked with '(continued...)' and those without. Ensure that slides are grouped appropriately based on title similarity and the presence of '(continued...)'. "
 
     t_value = []
@@ -497,6 +502,7 @@ def continued_title_check(slide_data):
 def generate_text_insights(
     text_content, text_length, low_quality_slides, slide_data, system_prompt
 ):
+    logging.info("Function to generate Text Insights") 
     headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
     insights = []
     max_retries=5
@@ -615,6 +621,7 @@ def generate_text_insights(
                         "insight": "Error generating insight.",
                     }
                 )
+                logging.critical("Error generating text insight.... (Response status is Failed)") 
         except requests.exceptions.RequestException as e:
             attempt = 2
             delay = min(max_delay, base_delay * (2**attempt))
@@ -628,6 +635,7 @@ def generate_text_insights(
 
 
 def generate_prompt(overall_theme):
+    logging.info("Function to generate Dynamic system prompt") 
     headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
 
     # Generate an overall theme of the following document content: {text_content}
@@ -655,11 +663,14 @@ def generate_prompt(overall_theme):
     if response.status_code == 200:
         return response.json()["choices"][0]["message"]["content"]
     else:
+        logging.info("Default system prompt has been returned")
         return "You are a Patent Attorney specializing in generating content based on the document content"
 
 
 # Function to detect images, flowcharts, and diagrams from the PDF focused to Title
 def extract_slide_images_for_title_extraction(pdf_path):
+    logging.info("Function to extract slide images for title extraction") 
+    
     doc = fitz.open(pdf_path)
     image_content = []
 
@@ -687,6 +698,7 @@ def extract_slide_images_for_title_extraction(pdf_path):
 
 # Function to detect images, flowcharts, and diagrams from the PDF
 def detect_images_from_pdf(pdf_path):
+    logging.info("Function to detect images from PDF")
     doc = fitz.open(pdf_path)
     image_content = []
 
@@ -715,6 +727,7 @@ def detect_images_from_pdf(pdf_path):
 
 
 def extract_text_and_titles_from_pdf(pdf_path):
+    logging.info("Function to extract text and titles from PDF using Fitz (PyMuPDF)")
     doc = fitz.open(pdf_path)
     slide_data = []
 
@@ -826,7 +839,8 @@ def generate_continue_insights(
                 if combined_images and combined_title and combined_text:
                     base64_images = [encode_image(img["image"]) for img in combined_images]
                     combined_slide_ref = ",".join(map(str, continued_slide_numbers))
-                    
+                    logging.info("Function to generate Continued Image Insights") 
+
                     # st.error(slide_number_img)
                     prompt =f"""{system_prompt}
                                                      
@@ -947,9 +961,11 @@ def generate_continue_insights(
                                 "slide_title": combined_title,
                                 "insight": response.json(),
                             }
-                        )                        
+                        )      
+                        logging.critical("Error generating combined_image insight.... (Response status is Failed)")                  
                 
                 if  combined_title and combined_text and combined_images == []:
+                    logging.info("Function to generate Continued Text Insights") 
                     combined_slide_ref = ",".join(map(str, continued_slide_numbers))
                     prompt =f"""{system_prompt}
                                                             
@@ -1033,13 +1049,16 @@ def generate_continue_insights(
                     # sp = response_data['choices'][0]['message']['content']
                     # st.write(sp)
 
+                    llm_result = response.json()["choices"][0]["message"]["content"]
+                    res_content = replace_disallowed_words(llm_result)
+                    
                     # Process the response
                     if response.status_code == 200:
                         insights.append(
                             {
                                 "slide_number": combined_slide_ref,
                                 "slide_title": combined_title,
-                                "insight": response.json()["choices"][0]["message"]["content"],
+                                "insight": res_content,
                             }
                         )
                     else:
@@ -1049,17 +1068,17 @@ def generate_continue_insights(
                                 "slide_title": combined_title,
                                 "insight": response.json(),
                             }
-                        )        
-                           
+                        )       
+                        logging.critical("Error generating combined_text insight.... (Response status is Failed)")   
     return insights
 
 
 # Function to generate an overall theme based on extracted text
 def generate_overall_theme(text_content):
+    logging.info("Function to generate an overall theme based on extracted text") 
+    
     headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
-
     prompt = f"Analysis and identify the domain and subject of the patent/Invention and then generate an overall theme of the following document content: {text_content}"
-
     data = {
         "model": model,
         "messages": [
@@ -1082,10 +1101,12 @@ def generate_overall_theme(text_content):
     if response.status_code == 200:
         return response.json()["choices"][0]["message"]["content"]
     else:
+        logging.warning("Error generating theme!") 
         return "Error generating theme."
 
 
 def extract_text_from_pdf(pdf_file):
+    logging.info("Function to extract text from pdf using Fitz (PyMuPDF)") 
     pdf_document = fitz.open(pdf_file)
     text_content = []
 
@@ -1177,6 +1198,7 @@ def format_content(text):
     return text.replace('### ', '').strip()
 
 def save_content_to_word(aggregated_content, output_file_name, extracted_images, theme):
+    logging.info("Function to save content into Word Document") 
     doc = Document()
     style = doc.styles["Normal"]
     font = style.font
@@ -1251,6 +1273,7 @@ def save_content_to_word(aggregated_content, output_file_name, extracted_images,
 
 def extract_and_clean_page_image(page, top_mask, bottom_mask, left_mask, right_mask):
     # Get the page as an image
+    logging.info("Function to extract and clean page image") 
     pix = page.get_pixmap()
     img_data = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
         pix.height, pix.width, pix.n
@@ -1303,6 +1326,7 @@ def extract_and_clean_page_image(page, top_mask, bottom_mask, left_mask, right_m
 def extract_images_from_pdf(
     pdf_file, top_mask, bottom_mask, left_mask, right_mask, low_quality_slides
 ):
+    logging.info("Function to extract from PDF") 
     # Open the PDF file
     pdf_document = fitz.open(pdf_file)
     page_images = []
@@ -1328,6 +1352,7 @@ def extract_images_from_pdf(
 
 
 def aggregate_content(text_insights, image_insights, slide_data, continue_insights):
+    logging.info("Function to aggregate generated content") 
     aggregated_content = []
     processed_slide_numbers = set()
 
@@ -1397,6 +1422,7 @@ def aggregate_content(text_insights, image_insights, slide_data, continue_insigh
 
 
 def identify_low_quality_slides(text_content, image_slides):
+    logging.info("Identifying low-quality slides.") 
     low_quality_slides = set()
 
     # Ensure all elements in image_slides have a valid 'slide_number' key
@@ -1435,13 +1461,15 @@ def identify_low_quality_slides(text_content, image_slides):
             for generic in ["introduction", "thank you", "inventor details", "contents"]
         ):
             low_quality_slides.add(slide_number)
-
+    
+    logging.info(f"Identified {len(low_quality_slides)} low-quality slides.") 
     return low_quality_slides
 
 
 def is_low_quality_image_slide(image_data):
     """Send image slide data to an LLM to check whether the slide is low quality."""
-
+    logging.info("Identifying low-quality slides using LLM") 
+    
     base64_image = encode_image(
         image_data["image"]
     )  # Access the image from the individual slide dictionary
@@ -1491,6 +1519,7 @@ def is_low_quality_image_slide(image_data):
         # st.success("low quality" in assessment.lower())
         return "low quality" in assessment.lower()
     else:
+        logging.error(f"Error processing slide: {response.status_code} to identify whether it is low quality or not")
         st.write(f"Error processing slide: {response.status_code}")
         return False
 
@@ -1512,6 +1541,7 @@ def download_from_blob_storage(file_name):
             container=container_name, blob=file_name
         )
         blob_data = blob_client.download_blob().readall()
+        logging.info(f"{file_name} download to Azure Blob Storage.")
         return BytesIO(blob_data)
     except Exception as e:
         st.error(f"Failed to download {file_name} from Azure Blob Storage: {e}")
