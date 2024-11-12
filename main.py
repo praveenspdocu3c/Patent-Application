@@ -19,7 +19,7 @@ import tempfile
 import logging
 import time
 import random
-from streamlit_option_menu import option_menu # type: ignore
+
 
 # Azure OpenAI credentials
 azure_endpoint = "https://theswedes.openai.azure.com/" 
@@ -1611,65 +1611,21 @@ def main():
     if "right_mask" not in st.session_state:
         st.session_state.right_mask = 85
 
-    # st.markdown(
-    #     """
-    #     <style>
-    #     .stButton>button {
-    #         padding: 10px 20px;
-    #         width: 140px;
-    #         height: 40px;
-    #         font-size: 16px;
-    #     }
-    #     </style>
-    #     """,
-    #     unsafe_allow_html=True
-    # )
+    st.markdown(
+        """
+        <style>
+        .stButton>button {
+            padding: 10px 20px;
+            width: 140px;
+            height: 40px;
+            font-size: 16px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # Style for buttons and sliders  
-    st.markdown(  
-        """  
-        <style>  
-        .stButton>button {  
-            padding: 10px 20px;  
-            width: 140px;  
-            height: 40px;  
-            font-size: 16px;  
-            margin-bottom: 10px;  
-        }  
-        .stSlider>div>div>div>input {  
-            color: red;  
-        }  
-        .sidebar .sidebar-content {  
-            width: 300px;  
-        }  
-        .css-1lcbmhc {  
-            display: block;  
-        }  
-        .css-1lcbmhc:before {  
-            content: "\\2190";  
-            font-size: 24px;  
-            cursor: pointer;  
-            position: absolute;  
-            left: -20px;  
-            top: 50%;  
-            transform: translateY(-50%);  
-        }  
-        </style>  
-        """,  
-        unsafe_allow_html=True  
-    )  
         
-    # # HTML for the toggle button  
-    # st.markdown(  
-    #     """  
-    #     <div class="toggle-button" onclick="document.body.classList.toggle('sidebar-hidden')">  
-    #         &#x276E;  
-    #     </div>  
-    #     """,  
-    #     unsafe_allow_html=True  
-    # )  
-    
-  
     col1, col2 = st.sidebar.columns(2)
     with col1:
         if st.button("Default"):
