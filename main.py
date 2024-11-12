@@ -1,3 +1,5 @@
+# Final Version (Included Backoff and Jitter & Cleaned Code) - Final
+
 import os
 import re
 import streamlit as st
@@ -17,12 +19,38 @@ import tempfile
 import logging
 import time
 import random
+from streamlit_option_menu import option_menu # type: ignore
 
 # Azure OpenAI credentials
 azure_endpoint = "https://theswedes.openai.azure.com/" 
 api_key = "783973291a7c4a74a1120133309860c0"
 api_version = "2024-02-01"
 model = "GPT-4o-mini"
+
+logging.basicConfig(
+    level=logging.INFO,  # Set log level to INFO
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]  # Send logs to the console
+)
+
+logging.basicConfig(
+    level=logging.WARNING,  # Set log level to WARNING
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]  # Send logs to the console
+)
+
+logging.basicConfig(
+    level=logging.CRITICAL,  # Set log level to CRITICAL
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]  # Send logs to the console
+)
+
+logging.basicConfig(
+    level=logging.ERROR,  # Set log level to ERROR
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]  # Send logs to the console
+)
+
 
 # Azure Blob Storage credentials
 connection_string = "DefaultEndpointsProtocol=https;AccountName=patentpptapp;AccountKey=4988gBY4D2RU4zdy1NCUoORdCRYvoOziWSHK9rOVHxy9pFXfKenRqyE/P+tpFpfmNObUm/zOCjeY+AStiCS3uw==;EndpointSuffix=core.windows.net"
@@ -490,7 +518,8 @@ def continued_title_check(slide_data):
             if sp:  # Check if the response contains "Yes"
                 continued.append({"set_of_slides": sp})
         else:
-            st.sidebar.write("Error: 'choices' key not found in the response.")
+            logging.error("Error: 'choices' key not found in the response.")
+            st.write("Error: 'choices' key not found in the response.")
 
     except Exception as e:
         # Developer's error handling in console
@@ -1582,21 +1611,65 @@ def main():
     if "right_mask" not in st.session_state:
         st.session_state.right_mask = 85
 
-    st.markdown(
-        """
-        <style>
-        .stButton>button {
-            padding: 10px 20px;
-            width: 140px;
-            height: 40px;
-            font-size: 16px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    # st.markdown(
+    #     """
+    #     <style>
+    #     .stButton>button {
+    #         padding: 10px 20px;
+    #         width: 140px;
+    #         height: 40px;
+    #         font-size: 16px;
+    #     }
+    #     </style>
+    #     """,
+    #     unsafe_allow_html=True
+    # )
 
+    # Style for buttons and sliders  
+    st.markdown(  
+        """  
+        <style>  
+        .stButton>button {  
+            padding: 10px 20px;  
+            width: 140px;  
+            height: 40px;  
+            font-size: 16px;  
+            margin-bottom: 10px;  
+        }  
+        .stSlider>div>div>div>input {  
+            color: red;  
+        }  
+        .sidebar .sidebar-content {  
+            width: 300px;  
+        }  
+        .css-1lcbmhc {  
+            display: block;  
+        }  
+        .css-1lcbmhc:before {  
+            content: "\\2190";  
+            font-size: 24px;  
+            cursor: pointer;  
+            position: absolute;  
+            left: -20px;  
+            top: 50%;  
+            transform: translateY(-50%);  
+        }  
+        </style>  
+        """,  
+        unsafe_allow_html=True  
+    )  
         
+    # # HTML for the toggle button  
+    # st.markdown(  
+    #     """  
+    #     <div class="toggle-button" onclick="document.body.classList.toggle('sidebar-hidden')">  
+    #         &#x276E;  
+    #     </div>  
+    #     """,  
+    #     unsafe_allow_html=True  
+    # )  
+    
+  
     col1, col2 = st.sidebar.columns(2)
     with col1:
         if st.button("Default"):
@@ -1661,8 +1734,8 @@ def main():
         options=["Standard", "Blend", "Creative"],
         value="Blend",
     )
-
-    if st.button("Start Generate"):
+    
+    if st.button("Start Generate"): 
         # Extract the base name of the uploaded PPT file
         if uploaded_ppt is None:      
             st.error("Please upload a PPT file before proceeding.")      
