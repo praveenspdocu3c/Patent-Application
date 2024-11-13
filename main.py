@@ -1698,6 +1698,7 @@ def main():
     def load_css(file_name):  
        with open(file_name) as f:  
           st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)  
+          st.write("CSS loaded")
   
     # Load the CSS file  
     load_css("style.css")  
