@@ -1704,6 +1704,20 @@ def main():
               st.success("CSS file not found")  
     load_css("style.css") 
 
+    import streamlit.components.v1 as components 
+    # Inject JavaScript to hide specific elements  
+    components.html("""  
+        <script>  
+            document.addEventListener("DOMContentLoaded", function() {  
+                const profileContainers = document.querySelectorAll("div._profileContainer_51w34_53, div._profilePreview_51w34_63");  
+                profileContainers.forEach(container => {  
+                    container.style.display = 'none';  
+                });  
+            });  
+        </script>  
+    """)  
+    
+
     # import streamlit.components.v1 as components  
     # components.html("""  
     #     <script>  
