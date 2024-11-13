@@ -1704,17 +1704,17 @@ def main():
               st.success("CSS file not found")  
     load_css("style.css") 
 
-    import streamlit.components.v1 as components  
-    components.html("""  
-        <script>  
-            document.addEventListener("DOMContentLoaded", function() {  
-                const specificContainer = document.querySelector("div._profileContainer_51w34_53");  
-                if (specificContainer) {  
-                    specificContainer.style.display = 'none';  
-                }  
-            });  
-        </script>  
-    """) 
+    # import streamlit.components.v1 as components  
+    # components.html("""  
+    #     <script>  
+    #         document.addEventListener("DOMContentLoaded", function() {  
+    #             const specificContainer = document.querySelector("div._profileContainer_51w34_53");  
+    #             if (specificContainer) {  
+    #                 specificContainer.style.display = 'none';  
+    #             }  
+    #         });  
+    #     </script>  
+    # """) 
 
     col1, col2 = st.sidebar.columns(2)
     with col1:
