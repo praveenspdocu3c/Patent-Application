@@ -13,42 +13,41 @@ from PIL import Image
 import requests
 import base64
 import json
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient  # type: ignore
-from azure.core.exceptions import ResourceExistsError
+from azure.storage.blob import BlobServiceClient # type: ignore
 import tempfile
 import logging
 import time
 import random
-
+import ast
 
 # Azure OpenAI credentials
-azure_endpoint = "https://theswedes.openai.azure.com/" 
+azure_endpoint = "https://theswedes.openai.azure.com/"
 api_key = "783973291a7c4a74a1120133309860c0"
 api_version = "2024-02-01"
 model = "GPT-4o-mini"
 
 logging.basicConfig(
     level=logging.INFO,  # Set log level to INFO
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]  # Send logs to the console
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],  # Send logs to the console
 )
 
 logging.basicConfig(
     level=logging.WARNING,  # Set log level to WARNING
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]  # Send logs to the console
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],  # Send logs to the console
 )
 
 logging.basicConfig(
     level=logging.CRITICAL,  # Set log level to CRITICAL
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]  # Send logs to the console
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],  # Send logs to the console
 )
 
 logging.basicConfig(
     level=logging.ERROR,  # Set log level to ERROR
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]  # Send logs to the console
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],  # Send logs to the console
 )
 
 
@@ -57,14 +56,13 @@ connection_string = "DefaultEndpointsProtocol=https;AccountName=patentpptapp;Acc
 container_name = "ppt-storage"
 
 blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-
 # URL of your Azure function endpoint
 azure_function_url = "https://doc2pdf.azurewebsites.net/api/HttpTrigger1"
 
 
 # Function to convert PPT to PDF using Azure Function
 def ppt_to_pdf(ppt_file, pdf_file):
-    logging.info("Function to convert PPT to PDF using Azure Function") 
+    logging.info("Function to convert PPT to PDF using Azure Function")
     mime_type = (
         "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
@@ -80,7 +78,9 @@ def ppt_to_pdf(ppt_file, pdf_file):
             return True
         else:
             st.error(f"File conversion failed with status code: {response.status_code}")
-            logging.error(f"File conversion failed with status code: {response.status_code}")
+            logging.error(
+                f"File conversion failed with status code: {response.status_code}"
+            )
             st.error(f"Response: {response.text}")
             return False
 
@@ -268,7 +268,7 @@ def encode_image(image):
 
 def extract_titles_from_images(image_content):
     slide_data = []
-    logging.info("Function to extract titles from images") 
+    logging.info("Function to extract titles from images")
     headers = {"Content-Type": "application/json", "api-key": api_key}
 
     for image_data in image_content:
@@ -323,12 +323,17 @@ def extract_titles_from_images(image_content):
 
     return slide_data
 
+
 # Function to generate insights for images via LLM
 def generate_image_insights(
-    image_content, text_length, low_quality_slides, system_prompt, slide_data,
+    image_content,
+    text_length,
+    low_quality_slides,
+    system_prompt,
+    slide_data,
 ):
     insights = []
-    logging.info("Function to generate Image Insights") 
+    logging.info("Function to generate Image Insights")
     # Set temperature based on text length
     temperature = (
         0.0 if text_length == "Standard" else 0.5 if text_length == "Blend" else 0.7
@@ -359,7 +364,12 @@ def generate_image_insights(
             "Untitled Slide",
         )
 
-        headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
+        headers = {
+            "Content-Type": "application/json",
+            "api-key": api_key,
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        }
 
         prompt = f"""
                     Important Note: Avoid using words like 'contain', 'necessity', 'necessary', 'necessitate', 'contain' , 'contains' , 'consist,' 'explore' , 'key component' , 'revolutionizing',  'innovative' , or similar terms. Use alternatives instead. Return the content in one paragraph only.
@@ -421,7 +431,7 @@ def generate_image_insights(
             ],
             "temperature": temperature,
         }
-        
+
         attempt = 0
         try:
             response = requests.post(
@@ -431,8 +441,8 @@ def generate_image_insights(
             )
 
             llm_result = response.json()["choices"][0]["message"]["content"]
-            res_content = replace_disallowed_words(llm_result)  
-            
+            res_content = replace_disallowed_words(llm_result)
+
             if response.status_code == 200:
                 insights.append(
                     {
@@ -449,34 +459,37 @@ def generate_image_insights(
                         "insight": "Error generating insight.",
                     }
                 )
-                logging.critical("Error generating image insight.... (Response status is Failed)") 
+                logging.critical(
+                    "Error generating image insight.... (Response status is Failed)"
+                )
         except requests.exceptions.RequestException as e:
-                attempt += 1 
-                if (attempt < 4):
-                    logging.error(
-                        f"Error generating content': {e}"
-                    )
-                    # Exponential backoff with random jitter
-                    backoff_time = (2 ** attempt) + random.uniform(0, 1)
-                    time.sleep(backoff_time)
+            attempt += 1
+            if attempt < 4:
+                logging.error(f"Error generating content': {e}")
+                # Exponential backoff with random jitter
+                backoff_time = (2**attempt) + random.uniform(0, 1)
+                time.sleep(backoff_time)
 
     return insights
 
 
 def continued_title_check(slide_data):
     continued = []
-    logging.info("Function to continued title check") 
+    logging.info("Function to continued title check")
     system_prompt = "You are tasked with identifying slides that share the same title. Once you detect identical titles across slides, check if any of these titles are followed by '(continued...)'. If a slide with the same title includes '(continued...)', return all the slides with the identical title, including those marked with '(continued...)' and those without. Ensure that slides are grouped appropriately based on title similarity and the presence of '(continued...)'. "
 
     t_value = []
     for sl in slide_data:
         slide_number = sl["slide_number"]
-        title = sl['title']
-        t_value.append(f"{slide_number} : {title}")        
+        title = sl["title"]
+        t_value.append(f"{slide_number} : {title}")
 
-
-    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
-
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": api_key,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
 
     prompt = f""" 
     Check for slides with identical titles. If multiple slides share the same title, verify if any of these slides have the same title followed by '(Continued...)'. If any of the identical titled slides include '(Continued...)', return all slides with that title, both with and without '(Continued...)' in the title.        
@@ -531,12 +544,16 @@ def continued_title_check(slide_data):
 def generate_text_insights(
     text_content, text_length, low_quality_slides, slide_data, system_prompt
 ):
-    logging.info("Function to generate Text Insights") 
-    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
+    logging.info("Function to generate Text Insights")
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": api_key,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
     insights = []
-    max_retries=5
-    base_delay=1
-    max_delay=32
+    base_delay = 1
+    max_delay = 32
 
     # Set temperature based on text_length
     if text_length == "Standard":
@@ -623,7 +640,7 @@ def generate_text_insights(
             ],
             "temperature": temperature,
         }
-        
+
         try:
             response = requests.post(
                 f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
@@ -632,8 +649,8 @@ def generate_text_insights(
             )
 
             llm_result = response.json()["choices"][0]["message"]["content"]
-            res_content = replace_disallowed_words(llm_result)  
-                        
+            res_content = replace_disallowed_words(llm_result)
+
             if response.status_code == 200:
                 insights.append(
                     {
@@ -650,7 +667,9 @@ def generate_text_insights(
                         "insight": "Error generating insight.",
                     }
                 )
-                logging.critical("Error generating text insight.... (Response status is Failed)") 
+                logging.critical(
+                    "Error generating text insight.... (Response status is Failed)"
+                )
         except requests.exceptions.RequestException as e:
             attempt = 2
             delay = min(max_delay, base_delay * (2**attempt))
@@ -658,14 +677,19 @@ def generate_text_insights(
             logging.warning(
                 f"Retrying in {jitter:.2f} seconds (attempt {attempt}) due to error: {e}"
             )
-            time.sleep(jitter)            
-            
+            time.sleep(jitter)
+
     return insights
 
 
 def generate_prompt(overall_theme):
-    logging.info("Function to generate Dynamic system prompt") 
-    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
+    logging.info("Function to generate Dynamic system prompt")
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": api_key,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
 
     # Generate an overall theme of the following document content: {text_content}
     prompt = f"Create a perfect system prompt based on the given content: {overall_theme}\n [Note: Return output in single line starting with 'You are a Patent Attorney specializing..]"
@@ -698,8 +722,8 @@ def generate_prompt(overall_theme):
 
 # Function to detect images, flowcharts, and diagrams from the PDF focused to Title
 def extract_slide_images_for_title_extraction(pdf_path):
-    logging.info("Function to extract slide images for title extraction") 
-    
+    logging.info("Function to extract slide images for title extraction")
+
     doc = fitz.open(pdf_path)
     image_content = []
 
@@ -718,7 +742,7 @@ def extract_slide_images_for_title_extraction(pdf_path):
         contours, _ = cv2.findContours(
             thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
-        significant_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > 1000]
+        # significant_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > 1000]
 
         image_content.append({"slide_number": page_num + 1, "image": img_np})
 
@@ -794,8 +818,6 @@ def extract_text_and_titles_from_pdf(pdf_path):
     return slide_data
 
 
-import ast
-
 def generate_continue_insights(
     text_length,
     continued_check,
@@ -815,7 +837,9 @@ def generate_continue_insights(
     for check_entry in continued_check:
         if isinstance(check_entry, dict):
             # Parse the "set_of_slides" string and ensure it is a list of lists
-            continued_slide_sets = ast.literal_eval(check_entry.get("set_of_slides", ""))
+            continued_slide_sets = ast.literal_eval(
+                check_entry.get("set_of_slides", "")
+            )
 
             # If the result is a single list (e.g., [2, 3]), wrap it in another list
             if isinstance(continued_slide_sets[0], int):
@@ -866,12 +890,14 @@ def generate_continue_insights(
                             )
 
                 if combined_images and combined_title and combined_text:
-                    base64_images = [encode_image(img["image"]) for img in combined_images]
+                    base64_images = [
+                        encode_image(img["image"]) for img in combined_images
+                    ]
                     combined_slide_ref = ",".join(map(str, continued_slide_numbers))
-                    logging.info("Function to generate Continued Image Insights") 
+                    logging.info("Function to generate Continued Image Insights")
 
                     # st.error(slide_number_img)
-                    prompt =f"""{system_prompt}
+                    prompt = f"""{system_prompt}
                                                      
                             Objective:
                                 Generate a detailed paragraph based on the provided slides, integrating both textual content and visual elements seamlessly. 
@@ -912,8 +938,8 @@ def generate_continue_insights(
                                     Flag any issues if figures are missing or combined improperly (e.g., "the figures" instead of individual references).
                                     For complex or overlapping figures, explain their relationships clearly, such as "Figure {slide_number_img}(a) interacts with Figure {slide_number_img}(b)..."  
                                     After Figure Reference follow these instructions based on the slide title from the Image slide:
-                                    If Image the title includes "Discussion" or "Motivation": Start with "Referring to Figure {slide_number_img}, In this prior solutions include..." and focus only on prior solutions.
-                                    If Image the title includes "Background": Start with "Referring to Figure {slide_number_img}, In this prior solutions include..." and focus only on prior solutions.
+                                    If Image the title includes 'Discussion': Start with "Referring to Figure {slide_number_img}, In this prior solutions include..." and focus only on prior solutions.
+                                    If Image the title includes "Background" or "Motivation": Start with "Referring to Figure {slide_number_img}, In this prior solutions include..." and focus only on prior solutions.
                                     If Image the title includes "Invention" or "Proposal": Start with "Referring to Figure {slide_number_img}, In this present disclosure includes..." and focus on the invention or proposal.                         
                                     
                                     For Graphs:
@@ -937,7 +963,7 @@ def generate_continue_insights(
                     # messages = []
                     for img_b64 in base64_images:
                         print(
-                        "-----------------------------------------------------------------------------------------------------------------"
+                            "-----------------------------------------------------------------------------------------------------------------"
                         )
 
                         # messages.append({"role": "user", "content": {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}})
@@ -951,7 +977,9 @@ def generate_continue_insights(
                                 "content": [
                                     {
                                         "type": "image_url",
-                                        "image_url": {"url": f"data:image/png;base64,{img_b64}"},
+                                        "image_url": {
+                                            "url": f"data:image/png;base64,{img_b64}"
+                                        },
                                     },
                                 ],
                             },
@@ -959,7 +987,12 @@ def generate_continue_insights(
                         "temperature": temperature,
                     }
 
-                    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
+                    headers = {
+                        "Content-Type": "application/json",
+                        "api-key": api_key,
+                        "Cache-Control": "no-cache",
+                        "Pragma": "no-cache",
+                    }
 
                     response = requests.post(
                         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
@@ -970,10 +1003,10 @@ def generate_continue_insights(
                     # response_data = response.json()
                     # sp = response_data['choices'][0]['message']['content']
                     # st.write(sp)
-                    
+
                     llm_result = response.json()["choices"][0]["message"]["content"]
-                    res_content = replace_disallowed_words(llm_result)  
-                    
+                    res_content = replace_disallowed_words(llm_result)
+
                     # Process the response
                     if response.status_code == 200:
                         insights.append(
@@ -990,13 +1023,15 @@ def generate_continue_insights(
                                 "slide_title": combined_title,
                                 "insight": response.json(),
                             }
-                        )      
-                        logging.critical("Error generating combined_image insight.... (Response status is Failed)")                  
-                
-                if  combined_title and combined_text and combined_images == []:
-                    logging.info("Function to generate Continued Text Insights") 
+                        )
+                        logging.critical(
+                            "Error generating combined_image insight.... (Response status is Failed)"
+                        )
+
+                if combined_title and combined_text and combined_images == []:
+                    logging.info("Function to generate Continued Text Insights")
                     combined_slide_ref = ",".join(map(str, continued_slide_numbers))
-                    prompt =f"""{system_prompt}
+                    prompt = f"""{system_prompt}
                                                             
                                 Objective:
                                                                                 
@@ -1055,18 +1090,25 @@ def generate_continue_insights(
                         Slide Text: ```{combined_text}```
                 """
 
-
                     data = {
                         "model": model,
                         "messages": [
-                            {"role": "system", "content": f"""{system_prompt}
-                                                            When generating content, avoid using the words "necessary" and "contain" and its related words. Instead, use alternatives like "required." """},
+                            {
+                                "role": "system",
+                                "content": f"""{system_prompt}
+                                                            When generating content, avoid using the words "necessary" and "contain" and its related words. Instead, use alternatives like "required." """,
+                            },
                             {"role": "user", "content": prompt},
                         ],
                         "temperature": temperature,
                     }
-                    
-                    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
+
+                    headers = {
+                        "Content-Type": "application/json",
+                        "api-key": api_key,
+                        "Cache-Control": "no-cache",
+                        "Pragma": "no-cache",
+                    }
 
                     response = requests.post(
                         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
@@ -1080,7 +1122,7 @@ def generate_continue_insights(
 
                     llm_result = response.json()["choices"][0]["message"]["content"]
                     res_content = replace_disallowed_words(llm_result)
-                    
+
                     # Process the response
                     if response.status_code == 200:
                         insights.append(
@@ -1097,16 +1139,23 @@ def generate_continue_insights(
                                 "slide_title": combined_title,
                                 "insight": response.json(),
                             }
-                        )       
-                        logging.critical("Error generating combined_text insight.... (Response status is Failed)")   
+                        )
+                        logging.critical(
+                            "Error generating combined_text insight.... (Response status is Failed)"
+                        )
     return insights
 
 
 # Function to generate an overall theme based on extracted text
 def generate_overall_theme(text_content):
-    logging.info("Function to generate an overall theme based on extracted text") 
-    
-    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
+    logging.info("Function to generate an overall theme based on extracted text")
+
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": api_key,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
     prompt = f"Analysis and identify the domain and subject of the patent/Invention and then generate an overall theme of the following document content: {text_content}"
     data = {
         "model": model,
@@ -1130,12 +1179,12 @@ def generate_overall_theme(text_content):
     if response.status_code == 200:
         return response.json()["choices"][0]["message"]["content"]
     else:
-        logging.warning("Error generating theme!") 
+        logging.warning("Error generating theme!")
         return "Error generating theme."
 
 
 def extract_text_from_pdf(pdf_file):
-    logging.info("Function to extract text from pdf using Fitz (PyMuPDF)") 
+    logging.info("Function to extract text from pdf using Fitz (PyMuPDF)")
     pdf_document = fitz.open(pdf_file)
     text_content = []
 
@@ -1213,31 +1262,33 @@ def ensure_proper_spacing(text):
 
 def boldify_text(paragraph, text):
     """Helper function to add text to a paragraph with bold formatting for sections surrounded by '**'."""
-    while '**' in text:
-        before, _, remaining_text = text.partition('**')
-        bold_part, _, after = remaining_text.partition('**')
+    while "**" in text:
+        before, _, remaining_text = text.partition("**")
+        bold_part, _, after = remaining_text.partition("**")
         paragraph.add_run(before)  # Add regular text before bold part
         bold_run = paragraph.add_run(bold_part)  # Bold text
         bold_run.bold = True
         text = after  # Continue with the rest of the text
     paragraph.add_run(text)  # Add any remaining regular text after the last bold part
 
+
 def format_content(text):
     """Helper function to remove '###' at the beginning for headings."""
-    return text.replace('### ', '').strip()
+    return text.replace("### ", "").strip()
+
 
 def save_content_to_word(aggregated_content, output_file_name, extracted_images, theme):
-    logging.info("Function to save content into Word Document") 
+    logging.info("Function to save content into Word Document")
     doc = Document()
     style = doc.styles["Normal"]
     font = style.font
     font.name = "Times New Roman"
-    font.size = Pt(10.5)  # Reduced font size for paragraphs            
+    font.size = Pt(10.5)  # Reduced font size for paragraphs
     paragraph_format = style.paragraph_format
-    paragraph_format.line_spacing = 1.5    
+    paragraph_format.line_spacing = 1.5
     paragraph_format.alignment = 3  # Justify
 
-    doc.add_heading("Overall Theme", level=1).alignment = 0  
+    doc.add_heading("Overall Theme", level=1).alignment = 0
     theme_paragraph = doc.add_paragraph()
     theme_paragraph.alignment = 0  # Left alignment for paragraph
 
@@ -1246,18 +1297,18 @@ def save_content_to_word(aggregated_content, output_file_name, extracted_images,
     boldify_text(theme_paragraph, processed_theme)
 
     # # Add the theme at the top of the document
-    # doc.add_heading("Overall Theme", level=1).alignment = 0  
+    # doc.add_heading("Overall Theme", level=1).alignment = 0
     # theme_paragraph = doc.add_paragraph(theme)
     # theme_paragraph.alignment = 0  # 0 for Left alignment
 
-    for slide in aggregated_content:                
+    for slide in aggregated_content:
         # Ensure slide is a dictionary
         if isinstance(slide, dict):
             slide_number = slide.get("slide_number", "Unknown Slide")
             slide_title = slide.get("slide_title", "Unknown Title")
             sanitized_title = sanitize_text(slide_title)
-            sanitized_content = sanitize_text(slide.get("insight", ""))
-            properly_spaced_content = ensure_proper_spacing(sanitized_content)
+            # sanitized_content = sanitize_text(slide.get("insight", ""))
+            # properly_spaced_content = ensure_proper_spacing(sanitized_content)
 
             # Check if slide_number is string or integer
             slide_numbers = (
@@ -1302,7 +1353,7 @@ def save_content_to_word(aggregated_content, output_file_name, extracted_images,
 
 def extract_and_clean_page_image(page, top_mask, bottom_mask, left_mask, right_mask):
     # Get the page as an image
-    logging.info("Function to extract and clean page image") 
+    logging.info("Function to extract and clean page image")
     pix = page.get_pixmap()
     img_data = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
         pix.height, pix.width, pix.n
@@ -1355,7 +1406,7 @@ def extract_and_clean_page_image(page, top_mask, bottom_mask, left_mask, right_m
 def extract_images_from_pdf(
     pdf_file, top_mask, bottom_mask, left_mask, right_mask, low_quality_slides
 ):
-    logging.info("Function to extract from PDF") 
+    logging.info("Function to extract from PDF")
     # Open the PDF file
     pdf_document = fitz.open(pdf_file)
     page_images = []
@@ -1379,9 +1430,8 @@ def extract_images_from_pdf(
     return page_images
 
 
-
 def aggregate_content(text_insights, image_insights, slide_data, continue_insights):
-    logging.info("Function to aggregate generated content") 
+    logging.info("Function to aggregate generated content")
     aggregated_content = []
     processed_slide_numbers = set()
 
@@ -1401,7 +1451,7 @@ def aggregate_content(text_insights, image_insights, slide_data, continue_insigh
         )
 
         # Add all slide numbers to processed list, handling comma-separated values
-        for slide_num in map(int, slide_numbers.split(',')):
+        for slide_num in map(int, slide_numbers.split(",")):
             processed_slide_numbers.add(slide_num)
 
     # Step 2: Add image insights for slides not processed by continue_insights
@@ -1414,7 +1464,9 @@ def aggregate_content(text_insights, image_insights, slide_data, continue_insigh
         if slide_number not in processed_slide_numbers:
             aggregated_content.append(
                 {
-                    "slide_number": str(slide_number),  # Store as string for consistency
+                    "slide_number": str(
+                        slide_number
+                    ),  # Store as string for consistency
                     "slide_title": slide_title,
                     "insight": image_insight,
                 }
@@ -1431,7 +1483,9 @@ def aggregate_content(text_insights, image_insights, slide_data, continue_insigh
         if slide_number not in processed_slide_numbers:
             aggregated_content.append(
                 {
-                    "slide_number": str(slide_number),  # Store as string for consistency
+                    "slide_number": str(
+                        slide_number
+                    ),  # Store as string for consistency
                     "slide_title": slide_title,
                     "insight": text_insight,
                 }
@@ -1441,17 +1495,15 @@ def aggregate_content(text_insights, image_insights, slide_data, continue_insigh
     # Step 4: Sort the aggregated content by slide number in ascending order
     # Convert slide_number to tuple of ints for consistent sorting
     aggregated_content = sorted(
-        aggregated_content,
-        key=lambda x: tuple(map(int, x["slide_number"].split(',')))
+        aggregated_content, key=lambda x: tuple(map(int, x["slide_number"].split(",")))
     )
 
     # Step 5: Return the aggregated content with the required structure
     return aggregated_content
 
 
-
 def identify_low_quality_slides(text_content, image_slides):
-    logging.info("Identifying low-quality slides.") 
+    logging.info("Identifying low-quality slides.")
     low_quality_slides = set()
 
     # Ensure all elements in image_slides have a valid 'slide_number' key
@@ -1490,21 +1542,21 @@ def identify_low_quality_slides(text_content, image_slides):
             for generic in ["introduction", "thank you", "inventor details", "contents"]
         ):
             low_quality_slides.add(slide_number)
-    
-    logging.info(f"Identified {len(low_quality_slides)} low-quality slides.") 
+
+    logging.info(f"Identified {len(low_quality_slides)} low-quality slides.")
     return low_quality_slides
 
 
 def is_low_quality_image_slide(image_data):
     """Send image slide data to an LLM to check whether the slide is low quality."""
-    logging.info("Identifying low-quality slides using LLM") 
-    
+    logging.info("Identifying low-quality slides using LLM")
+
     base64_image = encode_image(
         image_data["image"]
     )  # Access the image from the individual slide dictionary
 
     # Create prompt to assess the slide based on the slide number
-    prompt = f"""
+    prompt = """
     State whether the slide is low quality. 
     If it mostly contains text, check the slide has more than 30 words if it has then consider it high quality, 
     If the slide has less then 20 words without any image in it then consider it low quality.
@@ -1535,7 +1587,12 @@ def is_low_quality_image_slide(image_data):
         "temperature": 0.3,
     }
 
-    headers = {"Content-Type": "application/json", "api-key": api_key, "Cache-Control": "no-cache", "Pragma": "no-cache"}
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": api_key,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
 
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
@@ -1548,7 +1605,9 @@ def is_low_quality_image_slide(image_data):
         # st.success("low quality" in assessment.lower())
         return "low quality" in assessment.lower()
     else:
-        logging.error(f"Error processing slide: {response.status_code} to identify whether it is low quality or not")
+        logging.error(
+            f"Error processing slide: {response.status_code} to identify whether it is low quality or not"
+        )
         st.write(f"Error processing slide: {response.status_code}")
         return False
 
@@ -1559,7 +1618,7 @@ def upload_to_blob_storage(file_name, file_data):
             container=container_name, blob=file_name
         )
         blob_client.upload_blob(file_data, overwrite=True)
-        st.info(f"{file_name} uploaded to Azure Blob Storage.")
+        # st.info(f"{file_name} uploaded to Azure Blob Storage.")
     except Exception as e:
         st.error(f"Failed to upload {file_name} to Azure Blob Storage: {e}")
 
@@ -1577,26 +1636,26 @@ def download_from_blob_storage(file_name):
         return None
 
 
-# Replace disallowed words  
-def replace_disallowed_words(text):  
-    disallowed_words = {  
-        'necessary': 'required',  
-        'necessity': 'requirement',  
-        'necessitate': 'require',  
-        'necessitated': 'required',  
-        'necessitates': 'requires',  
-        'necessarily': 'inevitably',  
-        'necessitating': 'requiring',  
-        'contain': 'include',
-        'critical': 'captious',
-    }  
-    for word, replacement in disallowed_words.items():  
-        text = text.replace(word, replacement)      
+# Replace disallowed words
+def replace_disallowed_words(text):
+    disallowed_words = {
+        "necessary": "required",
+        "necessity": "requirement",
+        "necessitate": "require",
+        "necessitated": "required",
+        "necessitates": "requires",
+        "necessarily": "inevitably",
+        "necessitating": "requiring",
+        "contain": "include",
+        "critical": "captious",
+    }
+    for word, replacement in disallowed_words.items():
+        text = text.replace(word, replacement)
     # Ensure single paragraph output
-    text = ' '.join(text.split())
-    
+    text = " ".join(text.split())
+
     return text
-  
+
 
 # Streamlit app interface update
 def main():
@@ -1622,10 +1681,9 @@ def main():
         }
         </style>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
-        
     col1, col2 = st.sidebar.columns(2)
     with col1:
         if st.button("Default"):
@@ -1690,13 +1748,13 @@ def main():
         options=["Standard", "Blend", "Creative"],
         value="Blend",
     )
-    
-    if st.button("Start Generate"): 
+
+    if st.button("Start Generate"):
         # Extract the base name of the uploaded PPT file
-        if uploaded_ppt is None:      
-            st.error("Please upload a PPT file before proceeding.")      
+        if uploaded_ppt is None:
+            st.error("Please upload a PPT file before proceeding.")
             return
-          
+
         ppt_filename = uploaded_ppt.name
         base_filename = os.path.splitext(ppt_filename)[0]
         output_word_filename = f"{base_filename}.docx"
@@ -1725,7 +1783,9 @@ def main():
         text_content = extract_text_from_pdf("uploaded_pdf.pdf")
         # Extract images
 
-        title_slide_images = extract_slide_images_for_title_extraction("uploaded_pdf.pdf")
+        title_slide_images = extract_slide_images_for_title_extraction(
+            "uploaded_pdf.pdf"
+        )
         image_content = detect_images_from_pdf("uploaded_pdf.pdf")
 
         low_quality_slides = identify_low_quality_slides(text_content, image_content)
@@ -1737,7 +1797,7 @@ def main():
         if continued_check:
             for entry in continued_check:
                 slide_sets = entry["set_of_slides"].strip("[]").split("], [")
-                st.sidebar.write("Combined Slide Sets:")
+                st.sidebar.write("Continued Slide Sets:")
                 for slide_set in slide_sets:
                     st.sidebar.write(f"[{slide_set.strip()}]")
 
@@ -1768,9 +1828,9 @@ def main():
                 system_prompt,
                 slide_data,
             )
-            
+
             continue_insights = []
-            if continued_check != []: 
+            if continued_check != []:
                 # st.warning("Inside")
                 continue_insights = generate_continue_insights(
                     text_length,
@@ -1794,8 +1854,10 @@ def main():
                 low_quality_slides,
             )
 
-            aggregated_content = aggregate_content(text_insights, insights, slide_data, continue_insights)
-            
+            aggregated_content = aggregate_content(
+                text_insights, insights, slide_data, continue_insights
+            )
+
             for insight in aggregated_content:
                 st.subheader(f"[[{insight['slide_number']}, {insight['slide_title']}]]")
                 st.markdown(insight["insight"])
@@ -1816,6 +1878,7 @@ def main():
             st.success("Processing completed successfully!")
         else:
             st.warning("No images, flowcharts, or diagrams detected in the PDF.")
+
 
 if __name__ == "__main__":
     main()
