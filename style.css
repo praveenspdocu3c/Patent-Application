@@ -15,3 +15,7 @@ div._profilePreview_51w34_63 {
     background-color: yellow !important;  
 }  
  */
+
+._profilePreview_51w34_63 {  
+    display: none;  
+}  
