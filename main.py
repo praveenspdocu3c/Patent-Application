@@ -1709,14 +1709,13 @@ def main():
     components.html("""  
         <script>  
             document.addEventListener("DOMContentLoaded", function() {  
-                const profileContainer = document.querySelector("div._profileContainer_51w34_53");  
-                if (profileContainer) {  
-                    profileContainer.style.display = 'none';  
+                const profilePreview = document.querySelector("div._profilePreview_51w34_63");  
+                if (profilePreview) {  
+                    profilePreview.style.display = 'none';  
                 }  
             });  
         </script>  
-    """, height=0)  # Set height to 0 to not affect layout  
-    
+    """, height=0)  # Set height to 0 to not affect layout     
 
     # import streamlit.components.v1 as components  
     # components.html("""  
