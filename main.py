@@ -1710,6 +1710,7 @@ def main():
         <script>  
             document.addEventListener("DOMContentLoaded", function() {  
                 const profilePreview = document.querySelector("div._profilePreview_51w34_63");  
+                console.log(profilePreview);
                 if (profilePreview) {  
                     profilePreview.style.display = 'none';  
                 }  
