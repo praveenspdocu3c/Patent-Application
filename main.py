@@ -1695,6 +1695,13 @@ def main():
         unsafe_allow_html=True,
     )
 
+    def load_css(file_name):  
+       with open(file_name) as f:  
+          st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)  
+  
+    # Load the CSS file  
+    load_css("style.css")  
+
     col1, col2 = st.sidebar.columns(2)
     with col1:
         if st.button("Default"):
