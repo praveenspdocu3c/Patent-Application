@@ -1,1 +1,12 @@
-STREAMLIT_SERVER_OPTION_SHOWMENU=false
+[theme]  
+base = "dark"  
+
+[server]  
+enableCORS = false  
+enableXsrfProtection = false  
+
+[browser]  
+gatherUsageStats = false  
+
+[footer]  
+hideStreamlitLogo = true  
