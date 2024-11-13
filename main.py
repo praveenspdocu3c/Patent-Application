@@ -1699,9 +1699,6 @@ def main():
        if os.path.exists(file_name):  
            with open(file_name) as f:  
               st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)  
-              st.success("CSS loaded")  
-       else:  
-              st.success("CSS file not found")  
     load_css("style.css") 
 
     import streamlit.components.v1 as components 
