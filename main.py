@@ -26,6 +26,17 @@ api_key = "783973291a7c4a74a1120133309860c0"
 api_version = "2024-02-01"
 model = "GPT-4o-mini"
 
+
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True) 
+
+
+
 logging.basicConfig(
     level=logging.INFO,  # Set log level to INFO
     format="%(asctime)s - %(levelname)s - %(message)s",
