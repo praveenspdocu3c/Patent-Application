@@ -1707,15 +1707,14 @@ def main():
     import streamlit.components.v1 as components 
     # Inject JavaScript to hide specific elements  
     components.html("""  
-        <script>  
-            document.addEventListener("DOMContentLoaded", function() {  
-                const profilePreview = document.querySelector("div._profilePreview_51w34_63");  
-                console.log(profilePreview);
-                if (profilePreview) {  
-                    profilePreview.style.display = 'none';  
-                }  
-            });  
-        </script>  
+    <script>  
+        document.addEventListener('DOMContentLoaded', function() {  
+            var element = document.querySelector('._profilePreview_51w34_63');  
+            if (element) {  
+                element.style.display = 'none';  
+            }  
+        });   
+    </script>  
     """, height=0)  # Set height to 0 to not affect layout     
 
     # import streamlit.components.v1 as components  
