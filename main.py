@@ -532,7 +532,7 @@ def continued_title_check(slide_data):
 
     except Exception as e:
         # Developer's error handling in console
-        logging.info("Function - continued slide")
+        logging.warning("Function - continued slide")
 
     return continued
 
