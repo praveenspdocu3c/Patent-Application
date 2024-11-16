@@ -25,43 +25,7 @@ azure_endpoint = "https://theswedes.openai.azure.com/"
 api_key = "783973291a7c4a74a1120133309860c0"
 api_version = "2024-02-01"
 model = "GPT-4o-mini"
-
-
-hide_streamlit_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            </style>
-            """
-st.markdown(hide_streamlit_style, unsafe_allow_html=True) 
-
-
-
-logging.basicConfig(
-    level=logging.INFO,  # Set log level to INFO
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],  # Send logs to the console
-)
-
-logging.basicConfig(
-    level=logging.WARNING,  # Set log level to WARNING
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],  # Send logs to the console
-)
-
-logging.basicConfig(
-    level=logging.CRITICAL,  # Set log level to CRITICAL
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],  # Send logs to the console
-)
-
-logging.basicConfig(
-    level=logging.ERROR,  # Set log level to ERROR
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],  # Send logs to the console
-)
-
-
+    
 # Azure Blob Storage credentials
 connection_string = "DefaultEndpointsProtocol=https;AccountName=patentpptapp;AccountKey=4988gBY4D2RU4zdy1NCUoORdCRYvoOziWSHK9rOVHxy9pFXfKenRqyE/P+tpFpfmNObUm/zOCjeY+AStiCS3uw==;EndpointSuffix=core.windows.net"
 container_name = "ppt-storage"
@@ -95,6 +59,30 @@ def ppt_to_pdf(ppt_file, pdf_file):
             st.error(f"Response: {response.text}")
             return False
 
+
+LOG_FILE_NAME = "Patent-App-logs.log"
+
+# logging.basicConfig(
+#     level=logging.INFO,  # Set log level to INFO
+#     format="%(asctime)s - %(levelname)s - %(message)s",
+#     datefmt="%Y-%m-%d %H:%M:%S",
+#     # handlers=[logging.StreamHandler()], # Send logs to the console
+#     handlers=[
+#             logging.FileHandler(LOG_FILE_NAME),  # Log to a file
+#             logging.StreamHandler()  # Log to console
+#         ]
+#     # filename = LOG_FILE_NAME,
+# )
+    
+file_handler = logging.FileHandler(LOG_FILE_NAME)
+file_handler.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+file_handler.setFormatter(formatter)
+logging.getLogger().addHandler(file_handler)
+
+# for handler in logging.getLogger().handlers:
+#     st.write(f"Value: {handler}, Level: {handler.level}")
+    
 
 patent_profanity_words = [
     "absolute",
@@ -547,7 +535,7 @@ def continued_title_check(slide_data):
 
     except Exception as e:
         # Developer's error handling in console
-        logging.warning(f"Error: {str(e)}")
+        logging.info("Function - continued slide")
 
     return continued
 
@@ -1623,6 +1611,15 @@ def is_low_quality_image_slide(image_data):
         return False
 
 
+def upload_log_to_blob_storage(file_name, file_data):
+    try:
+        blob_client = blob_service_client.get_blob_client(container="log", blob=file_name)
+        blob_client.upload_blob(file_data, overwrite=True)
+        # st.info(f"{file_name} uploaded to Azure Blob Storage.")
+    except Exception as e:
+        logging.error(f"Blob upload error: {e}")
+        st.error(f"Failed to upload {file_name} to Azure Blob Storage: {e}")                
+        
 def upload_to_blob_storage(file_name, file_data):
     try:
         blob_client = blob_service_client.get_blob_client(
@@ -1694,37 +1691,6 @@ def main():
         """,
         unsafe_allow_html=True,
     )
-    
-    def load_css(file_name):  
-       if os.path.exists(file_name):  
-           with open(file_name) as f:  
-              st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)  
-    load_css("style.css") 
-
-    # import streamlit.components.v1 as components 
-    # # Inject JavaScript to hide specific elements  
-    # components.html("""  
-    # <script>  
-    #     document.addEventListener('DOMContentLoaded', function() {  
-    #         var element = document.querySelector('._profilePreview_51w34_63');  
-    #         if (element) {  
-    #             element.style.display = 'none';  
-    #         }  
-    #     });   
-    # </script>  
-    # """, height=0)  # Set height to 0 to not affect layout     
-
-    # import streamlit.components.v1 as components  
-    # components.html("""  
-    #     <script>  
-    #         document.addEventListener("DOMContentLoaded", function() {  
-    #             const specificContainer = document.querySelector("div._profileContainer_51w34_53");  
-    #             if (specificContainer) {  
-    #                 specificContainer.style.display = 'none';  
-    #             }  
-    #         });  
-    #     </script>  
-    # """) 
 
     col1, col2 = st.sidebar.columns(2)
     with col1:
@@ -1918,9 +1884,25 @@ def main():
                 file_name=output_word_filename,
             )
             st.success("Processing completed successfully!")
+            
+            for handler in logging.getLogger().handlers:
+                if isinstance(handler, logging.FileHandler):
+                    handler.flush()
+                    handler.close()
+
+            with open(LOG_FILE_NAME, "rb") as log_file:
+                upload_log_to_blob_storage(LOG_FILE_NAME, log_file)
+
         else:
             st.warning("No images, flowcharts, or diagrams detected in the PDF.")
 
+            for handler in logging.getLogger().handlers:
+                if isinstance(handler, logging.FileHandler):
+                    handler.flush()
+                    handler.close()
+            
+            with open(LOG_FILE_NAME, "rb") as log_file:
+                upload_log_to_blob_storage(LOG_FILE_NAME, log_file)        
 
 if __name__ == "__main__":
     main()
