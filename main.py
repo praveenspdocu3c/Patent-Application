@@ -1882,24 +1882,24 @@ def main():
             )
             st.success("Processing completed successfully!")
             
-            for handler in logging.getLogger().handlers:
-                if isinstance(handler, logging.FileHandler):
-                    handler.flush()
-                    handler.close()
+            # for handler in logging.getLogger().handlers:
+            #     if isinstance(handler, logging.FileHandler):
+            #         handler.flush()
+            #         handler.close()
 
-            with open(LOG_FILE_NAME, "rb") as log_file:
-                upload_log_to_blob_storage(LOG_FILE_NAME, log_file)
+            # with open(LOG_FILE_NAME, "rb") as log_file:
+            #     upload_log_to_blob_storage(LOG_FILE_NAME, log_file)
 
         else:
             st.warning("No images, flowcharts, or diagrams detected in the PDF.")
 
-            for handler in logging.getLogger().handlers:
-                if isinstance(handler, logging.FileHandler):
-                    handler.flush()
-                    handler.close()
+            # for handler in logging.getLogger().handlers:
+            #     if isinstance(handler, logging.FileHandler):
+            #         handler.flush()
+            #         handler.close()
             
-            with open(LOG_FILE_NAME, "rb") as log_file:
-                upload_log_to_blob_storage(LOG_FILE_NAME, log_file)        
+    with open(LOG_FILE_NAME, "rb") as log_file:
+        upload_log_to_blob_storage(LOG_FILE_NAME, log_file)        
 
 if __name__ == "__main__":
     main()
