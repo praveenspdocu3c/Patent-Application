@@ -23,6 +23,29 @@ azure_endpoint = "https://theswedes.openai.azure.com/"
 api_key = "783973291a7c4a74a1120133309860c0"
 api_version = "2024-02-01"
 model = "GPT-4o-mini"
+
+LOG_FILE_NAME = "Patent-App-logs.log"
+
+# logging.basicConfig(
+#     level=logging.INFO,  # Set log level to INFO
+#     format="%(asctime)s - %(levelname)s - %(message)s",
+#     datefmt="%Y-%m-%d %H:%M:%S",
+#     # handlers=[logging.StreamHandler()], # Send logs to the console
+#     handlers=[
+#             logging.FileHandler(LOG_FILE_NAME),  # Log to a file
+#             logging.StreamHandler()  # Log to console
+#         ]
+#     # filename = LOG_FILE_NAME,
+# )
+    
+file_handler = logging.FileHandler(LOG_FILE_NAME)
+file_handler.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+file_handler.setFormatter(formatter)
+logging.getLogger().addHandler(file_handler)
+
+# for handler in logging.getLogger().handlers:
+#     st.write(f"Value: {handler}, Level: {handler.level}")
     
 # Azure Blob Storage credentials
 connection_string = "DefaultEndpointsProtocol=https;AccountName=patentpptapp;AccountKey=4988gBY4D2RU4zdy1NCUoORdCRYvoOziWSHK9rOVHxy9pFXfKenRqyE/P+tpFpfmNObUm/zOCjeY+AStiCS3uw==;EndpointSuffix=core.windows.net"
@@ -57,30 +80,6 @@ def ppt_to_pdf(ppt_file, pdf_file):
             st.error(f"Response: {response.text}")
             return False
 
-
-LOG_FILE_NAME = "Patent-App-logs.log"
-
-# logging.basicConfig(
-#     level=logging.INFO,  # Set log level to INFO
-#     format="%(asctime)s - %(levelname)s - %(message)s",
-#     datefmt="%Y-%m-%d %H:%M:%S",
-#     # handlers=[logging.StreamHandler()], # Send logs to the console
-#     handlers=[
-#             logging.FileHandler(LOG_FILE_NAME),  # Log to a file
-#             logging.StreamHandler()  # Log to console
-#         ]
-#     # filename = LOG_FILE_NAME,
-# )
-    
-file_handler = logging.FileHandler(LOG_FILE_NAME)
-file_handler.setLevel(logging.INFO)
-formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-file_handler.setFormatter(formatter)
-logging.getLogger().addHandler(file_handler)
-
-# for handler in logging.getLogger().handlers:
-#     st.write(f"Value: {handler}, Level: {handler.level}")
-    
 
 patent_profanity_words = [
     "absolute",
